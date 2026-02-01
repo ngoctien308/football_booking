@@ -7,7 +7,7 @@ import AuthLayout from '../layouts/AuthLayout';
 import ChooseRole from '../pages/normal/ChooseRole';
 import AfterSignUp from '../pages/normal/AfterSignUp';
 import HomePage from '../pages/normal/customers/HomePage';
-import OwnerDashboard from '../pages/owners/OwnerDashboard';
+import OwnerDashboard from '../pages/normal/owners/OwnerDashboard';
 
 const AppRouter = () => {
   return (

@@ -324,14 +324,14 @@ const OwnerDashboard = () => {
                           type="time"
                           value={slot.start_time}
                           onChange={(e) => setSlot(i, "start_time", e.target.value)}
-                          className="w-[100px] px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
+                          className="w-25 px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
                         />
                         <span className="text-slate-400">–</span>
                         <input
                           type="time"
                           value={slot.end_time}
                           onChange={(e) => setSlot(i, "end_time", e.target.value)}
-                          className="w-[100px] px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
+                          className="w-25 px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
                         />
                       </div>
                       <select
