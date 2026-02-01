@@ -6,6 +6,8 @@ import AdminDashboard from '../pages/admin/AdminDashboard';
 import AuthLayout from '../layouts/AuthLayout';
 import ChooseRole from '../pages/normal/ChooseRole';
 import AfterSignUp from '../pages/normal/AfterSignUp';
+import HomePage from '../pages/normal/customers/HomePage';
+import OwnerDashboard from '../pages/owners/OwnerDashboard';
 
 const AppRouter = () => {
   return (
@@ -25,11 +27,13 @@ const AppRouter = () => {
 
         {/* ============================================== */}
         {/* CUSTOMERS */}
-        <Route path="/customers" element={<CustomerLayout />}>
+        <Route path="/customers/" element={<CustomerLayout />}>
+          <Route path='home-page' element={<HomePage />} />
         </Route>
 
         {/* OWNERS */}
         <Route path="/owners" element={<OwnerLayout />}>
+          <Route index element={<OwnerDashboard />} />
         </Route>
 
         {/* DEFAULT */}

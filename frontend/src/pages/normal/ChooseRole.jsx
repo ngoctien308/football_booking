@@ -1,86 +1,131 @@
-import { User, Store, ArrowRight, LayoutDashboard } from "lucide-react";
-import { SignUpButton } from "@clerk/clerk-react";
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { User, Store, ArrowRight, LogIn, Loader2 } from "lucide-react";
+import { SignUpButton, useUser } from "@clerk/clerk-react";
+import axios from "axios";
+
+const API_BASE = "http://localhost:3000/api";
+
+const cardBase =
+  "w-full p-6 rounded-xl border border-slate-200 bg-white text-left hover:border-emerald-400 hover:bg-slate-50/50 transition flex flex-col";
 
 const ChooseRole = () => {
-    const roleForNewAccount = role => {
-        localStorage.setItem("roleForNewAccount", role);
+  const navigate = useNavigate();
+  const { user } = useUser();
+  const [submitting, setSubmitting] = useState(false);
+
+  const setRoleAndGo = (role) => {
+    localStorage.setItem("roleForNewAccount", role);
+  };
+
+  const completeRegistration = async (role) => {
+    if (!user?.id) return;
+    setSubmitting(true);
+    try {
+      const res = await axios.post(`${API_BASE}/auth/signup`, {
+        clerk_user_id: user.id,
+        name: user.fullName,
+        email: user.primaryEmailAddress?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress,
+        role,
+      });
+      if (res.status === 200 || res.status === 201) navigate(`/${role}s`);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Có lỗi khi hoàn tất đăng ký.");
+    } finally {
+      setSubmitting(false);
     }
+  };
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] relative overflow-hidden">
-            {/* Trang trí nền nhẹ nhàng */}
-            <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-green-500 via-blue-500 to-indigo-500"></div>
-            <div className="absolute -top-24 -right-24 w-96 h-96 bg-green-100 rounded-full blur-3xl opacity-50"></div>
-            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
-
-            <div
-                className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 hover:scale-105"
-                style={{
-                    backgroundImage: `url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')`,
-                }}
-            >
-                <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"></div>
-            </div>
-
-            <div className="relative z-10 w-full max-w-4xl px-6">
-                {/* Header */}
-                <div className="text-center mb-12">
-                    <h2 className="text-green-600 font-bold tracking-widest uppercase text-sm mb-3">
-                        Trải nghiệm bắt đầu từ đây
-                    </h2>
-                    <h1 className="text-4xl text-white font-extrabold mb-4">
-                        Chào bạn, vai trò của bạn là gì?
-                    </h1>
-                    <p className="text-white text-lg">
-                        Hãy chọn loại tài khoản để chúng tôi tối ưu giao diện cho bạn.
-                    </p>
-                </div>
-
-                {/* Selection Cards */}
-                <div className="grid md:grid-cols-2 gap-8">
-
-                    {/* Option: Customer */}
-                    <SignUpButton forceRedirectUrl="/after-signup">
-                        <button
-                            onClick={() => roleForNewAccount("customer")}
-                            className="group relative bg-white p-8 rounded-[2.5rem] shadow-sm border-2 border-transparent hover:border-green-500 hover:shadow-2xl hover:shadow-green-100 transition-all duration-300 text-left"
-                        >
-                            <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-transform">
-                                <User className="w-8 h-8 text-green-600" />
-                            </div>
-                            <h3 className="text-2xl font-bold text-gray-800 mb-2">Tôi là Người đặt sân</h3>
-                            <p className="text-gray-500 mb-6 leading-relaxed">
-                                Tìm kiếm sân bóng gần bạn, xem lịch trống và đặt sân chỉ trong 30 giây.
-                            </p>
-                            <div className="flex items-center text-green-600 font-bold group-hover:gap-2 transition-all">
-                                Bắt đầu ngay <ArrowRight className="w-5 h-5 ml-2" />
-                            </div>
-                        </button>
-                    </SignUpButton>
-
-                    {/* Option: Owner */}
-                    <SignUpButton forceRedirectUrl="/after-signup">
-                        <button
-                            onClick={() => roleForNewAccount("owner")}
-                            className="group relative bg-white p-8 rounded-[2.5rem] shadow-sm border-2 border-transparent hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-100 transition-all duration-300 text-left"
-                        >
-                            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:-rotate-3 transition-transform">
-                                <Store className="w-8 h-8 text-indigo-600" />
-                            </div>
-                            <h3 className="text-2xl font-bold text-gray-800 mb-2">Tôi là Chủ sân bóng</h3>
-                            <p className="text-gray-500 mb-6 leading-relaxed">
-                                Quản lý danh sách sân, theo dõi doanh thu và lịch trình đặt sân chuyên nghiệp.
-                            </p>
-                            <div className="flex items-center text-indigo-600 font-bold group-hover:gap-2 transition-all">
-                                Quản lý ngay <LayoutDashboard className="w-5 h-5 ml-2" />
-                            </div>
-                        </button>
-                    </SignUpButton>
-
-                </div>
-            </div>
+  return (
+    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 py-12">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="text-lg font-semibold text-slate-800">
+            {user ? "Chọn vai trò để hoàn tất" : "Bạn đăng ký với vai trò nào?"}
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            {user ? "Chọn một loại tài khoản để tiếp tục." : "Chọn một loại tài khoản bên dưới."}
+          </p>
         </div>
-    );
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {user ? (
+            <>
+              <button
+                type="button"
+                onClick={() => completeRegistration("customer")}
+                disabled={submitting}
+                className={cardBase}
+              >
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center mb-4">
+                  <User className="w-5 h-5 text-emerald-600" />
+                </div>
+                <span className="font-medium text-slate-800">Người đặt sân</span>
+                <span className="text-slate-500 text-sm mt-1">Tìm sân và đặt lịch nhanh.</span>
+                <span className="mt-4 text-emerald-600 text-sm font-medium inline-flex items-center gap-1">
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tiếp tục"}
+                  {!submitting && <ArrowRight className="w-4 h-4" />}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => completeRegistration("owner")}
+                disabled={submitting}
+                className={cardBase}
+              >
+                <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center mb-4">
+                  <Store className="w-5 h-5 text-slate-600" />
+                </div>
+                <span className="font-medium text-slate-800">Chủ sân</span>
+                <span className="text-slate-500 text-sm mt-1">Quản lý sân và lịch đặt.</span>
+                <span className="mt-4 text-slate-600 text-sm font-medium inline-flex items-center gap-1">
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tiếp tục"}
+                  {!submitting && <ArrowRight className="w-4 h-4" />}
+                </span>
+              </button>
+            </>
+          ) : (
+            <>
+              <SignUpButton forceRedirectUrl="/after-signup">
+                <button onClick={() => setRoleAndGo("customer")} className={cardBase}>
+                  <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center mb-4">
+                    <User className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <span className="font-medium text-slate-800">Người đặt sân</span>
+                  <span className="text-slate-500 text-sm mt-1">Tìm sân và đặt lịch nhanh.</span>
+                  <span className="mt-4 text-emerald-600 text-sm font-medium inline-flex items-center gap-1">
+                    Đăng ký <ArrowRight className="w-4 h-4" />
+                  </span>
+                </button>
+              </SignUpButton>
+              <SignUpButton forceRedirectUrl="/after-signup">
+                <button onClick={() => setRoleAndGo("owner")} className={cardBase}>
+                  <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center mb-4">
+                    <Store className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <span className="font-medium text-slate-800">Chủ sân</span>
+                  <span className="text-slate-500 text-sm mt-1">Quản lý sân và lịch đặt.</span>
+                  <span className="mt-4 text-slate-600 text-sm font-medium inline-flex items-center gap-1">
+                    Đăng ký <ArrowRight className="w-4 h-4" />
+                  </span>
+                </button>
+              </SignUpButton>
+            </>
+          )}
+        </div>
+
+        {!user && (
+          <p className="mt-6 text-center text-slate-500 text-sm">
+            Đã có tài khoản?{" "}
+            <Link to="/auth" className="text-emerald-600 font-medium inline-flex items-center gap-1 hover:underline">
+              <LogIn className="w-4 h-4" /> Đăng nhập
+            </Link>
+          </p>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default ChooseRole;
