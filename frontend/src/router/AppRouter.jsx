@@ -7,6 +7,7 @@ import AuthLayout from '../layouts/AuthLayout';
 import ChooseRole from '../pages/normal/ChooseRole';
 import AfterSignUp from '../pages/normal/AfterSignUp';
 import HomePage from '../pages/normal/customers/HomePage';
+import FieldDetail from '../pages/normal/customers/FieldDetail';
 import OwnerDashboard from '../pages/normal/owners/OwnerDashboard';
 
 const AppRouter = () => {
@@ -29,6 +30,7 @@ const AppRouter = () => {
         {/* CUSTOMERS */}
         <Route path="/customers/" element={<CustomerLayout />}>
           <Route path='home-page' element={<HomePage />} />
+          <Route path='fields/:id' element={<FieldDetail />} />
         </Route>
 
         {/* OWNERS */}

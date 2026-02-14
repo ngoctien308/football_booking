@@ -2,8 +2,152 @@ import { db } from "../config/db.js";
 
 export const getAllFields = async (req, res) => {
     try {
-        const [fieldRows] = await db.query('SELECT * FROM fields');
-        res.status(200).json({ fields: fieldRows });
+        // Lấy thông tin sân kèm ảnh chính, số slot còn lại và review trung bình
+        const query = `
+            SELECT 
+                f.*,
+                COALESCE(
+                    (SELECT image_url FROM field_images WHERE field_id = f.id AND is_primary = 1 LIMIT 1),
+                    (SELECT image_url FROM field_images WHERE field_id = f.id LIMIT 1),
+                    NULL
+                ) as primary_image,
+                COALESCE(
+                    (SELECT COUNT(DISTINCT fp.time_slot_id) 
+                     FROM field_prices fp 
+                     WHERE fp.field_id = f.id) - 
+                    (SELECT COUNT(DISTINCT b.time_slot_id) 
+                     FROM bookings b 
+                     WHERE b.field_id = f.id 
+                     AND b.booking_date >= CURDATE() 
+                     AND b.status IN ('pending', 'approved')),
+                    0
+                ) as remaining_slots,
+                COALESCE(
+                    (SELECT AVG(rating) FROM reviews WHERE field_id = f.id),
+                    0
+                ) as average_rating,
+                COALESCE(
+                    (SELECT COUNT(*) FROM reviews WHERE field_id = f.id),
+                    0
+                ) as review_count
+            FROM fields f
+            ORDER BY f.created_at DESC
+        `;
+        const [fieldRows] = await db.query(query);
+        
+        // Format lại dữ liệu
+        const fields = fieldRows.map(field => ({
+            ...field,
+            primary_image: field.primary_image ? 
+                (field.primary_image.startsWith('http') ? field.primary_image : `http://localhost:3000${field.primary_image}`) : 
+                null,
+            remaining_slots: parseInt(field.remaining_slots) || 0,
+            average_rating: parseFloat(field.average_rating) || 0,
+            review_count: parseInt(field.review_count) || 0
+        }));
+        
+        res.status(200).json({ fields });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Lấy chi tiết 1 sân: thông tin, ảnh, slot còn lại, rating + danh sách review
+export const getFieldDetail = async (req, res) => {
+    try {
+        const fieldId = req.params.id;
+        if (!fieldId) {
+            return res.status(400).json({ message: "Thiếu id sân" });
+        }
+
+        const fieldQuery = `
+            SELECT 
+                f.*,
+                COALESCE(
+                    (SELECT COUNT(DISTINCT fp.time_slot_id) 
+                     FROM field_prices fp 
+                     WHERE fp.field_id = f.id) - 
+                    (SELECT COUNT(DISTINCT b.time_slot_id) 
+                     FROM bookings b 
+                     WHERE b.field_id = f.id 
+                     AND b.booking_date >= CURDATE() 
+                     AND b.status IN ('pending', 'approved')),
+                    0
+                ) as remaining_slots,
+                COALESCE(
+                    (SELECT AVG(rating) FROM reviews WHERE field_id = f.id),
+                    0
+                ) as average_rating,
+                COALESCE(
+                    (SELECT COUNT(*) FROM reviews WHERE field_id = f.id),
+                    0
+                ) as review_count
+            FROM fields f
+            WHERE f.id = ?
+            LIMIT 1
+        `;
+        const [fieldRows] = await db.query(fieldQuery, [fieldId]);
+        if (fieldRows.length === 0) {
+            return res.status(404).json({ message: "Không tìm thấy sân" });
+        }
+
+        const field = fieldRows[0];
+
+        const [imageRows] = await db.query(
+            "SELECT id, image_url, is_primary FROM field_images WHERE field_id = ? ORDER BY is_primary DESC, created_at DESC",
+            [fieldId]
+        );
+
+        const images = imageRows.map((img) => ({
+            ...img,
+            image_url: img.image_url.startsWith("http")
+                ? img.image_url
+                : `http://localhost:3000${img.image_url}`,
+        }));
+
+        const [reviewRows] = await db.query(
+            `SELECT r.id,
+                    r.customer_id,
+                    r.rating,
+                    r.comment,
+                    r.created_at,
+                    u.name AS customer_name,
+                    u.clerk_user_id
+             FROM reviews r
+             JOIN users u ON u.id = r.customer_id
+             WHERE r.field_id = ?
+             ORDER BY r.created_at DESC`,
+            [fieldId]
+        );
+
+        const [slotRows] = await db.query(
+            `SELECT 
+                ts.id as time_slot_id,
+                ts.start_time,
+                ts.end_time,
+                ts.type,
+                fp.price
+             FROM field_prices fp
+             JOIN time_slots ts ON ts.id = fp.time_slot_id
+             WHERE fp.field_id = ?
+             ORDER BY ts.start_time ASC`,
+            [fieldId]
+        );
+
+        const formattedField = {
+            ...field,
+            remaining_slots: parseInt(field.remaining_slots) || 0,
+            average_rating: parseFloat(field.average_rating) || 0,
+            review_count: parseInt(field.review_count) || 0,
+        };
+
+        res.status(200).json({
+            field: formattedField,
+            images,
+            reviews: reviewRows,
+            time_slots: slotRows,
+        });
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: error.message });
@@ -25,7 +169,7 @@ export const getFieldsByOwner = async (req, res) => {
         }
         const ownerId = owners[0].id;
         const [fields] = await db.query(
-            'SELECT id, field_name, province, district, ward, street_address, description, status, created_at FROM fields WHERE owner_id = ? ORDER BY created_at DESC',
+            'SELECT fi.image_url, f.id, f.field_name, f.province, f.district, f.ward, f.street_address, f.description, f.status, f.created_at FROM fields f INNER JOIN field_images fi ON f.id = fi.field_id WHERE f.owner_id = ? and fi.is_primary = 1 ORDER BY f.created_at DESC',
             [ownerId]
         );
         res.status(200).json({ fields });

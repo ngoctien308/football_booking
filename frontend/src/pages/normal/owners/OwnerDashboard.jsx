@@ -156,34 +156,48 @@ const OwnerDashboard = () => {
         </div>
       ) : (
         <ul className="space-y-3">
-          {fields.map((f) => (
-            <li
-              key={f.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 flex items-start gap-3"
-            >
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                <MapPin className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="font-medium text-slate-800">{f.field_name}</h2>
-                <p className="text-slate-500 text-sm mt-0.5">
-                  {f.street_address}, {f.ward}, {f.district}, {f.province}
-                </p>
-                {f.description && (
-                  <p className="text-slate-600 text-sm mt-1 line-clamp-2">{f.description}</p>
-                )}
-                <span
-                  className={`inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium ${
-                    f.status === "active"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {f.status === "active" ? "Hoạt động" : "Tạm dừng"}
-                </span>
-              </div>
-            </li>
-          ))}
+          {fields.map((f) => {
+            console.log(f)
+            return (
+              <li
+                key={f.id}
+                className="flex items-center justify-between gap-4 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition cursor-pointer"
+              >
+                <div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-medium text-slate-800">{f.field_name}</h2>
+                    <p className="text-slate-500 text-sm mt-0.5">
+                      {f.street_address}, {f.ward}, {f.district}, {f.province}
+                    </p>
+                    {f.description && (
+                      <p className="text-slate-600 text-sm mt-1 line-clamp-2">{f.description}</p>
+                    )}
+                    <span
+                      className={`inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium ${f.status === "active"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-100 text-slate-600"
+                        }`}
+                    >
+                      {f.status === "active" ? "Hoạt động" : "Tạm dừng"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  {f.image_url && f.image_url.length > 0 ? (
+                    <img
+                      src={'http://localhost:3000' + f.image_url}
+                      alt={f.field_name}
+                      className="w-16 h-16 rounded-lg object-cover border border-slate-200"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
+                      <ImagePlus className="w-6 h-6 text-slate-300" />
+                    </div>
+                  )}
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
 

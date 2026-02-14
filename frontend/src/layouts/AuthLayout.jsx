@@ -84,7 +84,7 @@ const AuthLayout = () => {
                   <p className="text-slate-700 text-sm mb-3">Xin chào, {user?.firstName}!</p>
                   <UserButton afterSignOutUrl="/auth" />
                   <SignOutButton>
-                    <button className="mt-4 w-full py-2.5 text-slate-500 text-sm hover:text-slate-700">
+                    <button className="border border-gray-300 cursor-pointer mt-4 w-full py-2.5 text-slate-500 text-sm hover:bg-gray-100 rounded-lg transition">
                       Đăng xuất
                     </button>
                   </SignOutButton>
