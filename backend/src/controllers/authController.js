@@ -1,43 +1,76 @@
-import { db } from '../config/db.js';
+import { db } from "../config/db.js";
 
 export const createUser = async (req, res) => {
     try {
-        const { clerk_user_id, name, email, role } = req.body;
+        const { clerk_user_id, name, email, role } = req.body || {};
+
         if (!clerk_user_id || !role) {
-            return res.status(400).json({ message: 'Thiếu clerk_user_id hoặc role.' });
-        }
-        if (!['customer', 'owner'].includes(role)) {
-            return res.status(400).json({ message: 'Vai trò phải là customer hoặc owner.' });
+            return res.status(400).json({ message: "Missing clerk_user_id or role." });
         }
 
-        const [existing] = await db.query('SELECT id, role FROM users WHERE clerk_user_id = ?', [clerk_user_id]);
-        if (existing.length > 0) {
-            return res.status(200).json({ message: 'Tài khoản đã tồn tại.', currentUser: existing[0] });
+        if (!["customer", "owner"].includes(role)) {
+            return res.status(400).json({ message: "Role must be customer or owner." });
         }
 
-        await db.query(
-            'INSERT INTO users (clerk_user_id, name, email, role) VALUES (?, ?, ?, ?)',
-            [clerk_user_id, name || null, email || null, role]
-        );
-        const [rows] = await db.query('SELECT * FROM users WHERE clerk_user_id = ?', [clerk_user_id]);
-        res.status(201).json({ message: 'Đăng ký thành công.', currentUser: rows[0] });
+        const { data: existing, error: existingError } = await db
+            .from("users")
+            .select("id, role")
+            .eq("clerk_user_id", clerk_user_id)
+            .limit(1);
+
+        if (existingError) {
+            throw existingError;
+        }
+
+        if (existing && existing.length > 0) {
+            return res.status(200).json({ message: "Account already exists.", currentUser: existing[0] });
+        }
+
+        const { data: inserted, error: insertError } = await db
+            .from("users")
+            .insert([
+                {
+                    clerk_user_id,
+                    name: name || null,
+                    email: email || null,
+                    role,
+                },
+            ])
+            .select("*")
+            .single();
+
+        if (insertError) {
+            throw insertError;
+        }
+
+        return res.status(201).json({ message: "Sign up successful.", currentUser: inserted });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
 
 export const getCurrentUser = async (req, res) => {
     try {
-        const [rows] = await db.query(
-            'SELECT * FROM users WHERE clerk_user_id = ?',
-            [req.params.clerk_user_id]
-        );
-        if (rows.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+        const { clerk_user_id } = req.params;
+
+        const { data: user, error } = await db
+            .from("users")
+            .select("*")
+            .eq("clerk_user_id", clerk_user_id)
+            .maybeSingle();
+
+        if (error) {
+            throw error;
         }
-        res.status(200).json({ currentUser: rows[0] });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        return res.status(200).json({ currentUser: user });
     } catch (error) {
-        res.status(500).json({ message: 'Internal server error' });
-    }   
-}
+        console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};

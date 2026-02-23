@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th2 01, 2026 lúc 04:55 PM
+-- Thời gian đã tạo: Th2 23, 2026 lúc 04:34 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -64,7 +64,8 @@ CREATE TABLE `fields` (
 --
 
 INSERT INTO `fields` (`id`, `field_name`, `province`, `district`, `ward`, `street_address`, `description`, `owner_id`, `status`, `created_at`) VALUES
-(2, 'Sân bóng Tuấn Phong', 'Hà Nội', 'Thanh Xuân', 'Thanh Trì', 'Đường Phạm Tu', NULL, 1, 'active', '2026-01-30 22:03:53');
+(3, 'Sân bóng Tuấn Phong', 'Hà Nội', 'Thanh Xuân', 'Thanh Trì', 'Đường Phạm Tu, số 10', 'Sân chơi cho anh em đam mê bóng đá', 2, 'active', '2026-02-01 23:29:15'),
+(4, 'Sân bóng Minh Đức', 'Hà Nội', 'Thanh Xuân', 'Thanh Trì', 'Đường Phạm Tu, số 12', 'Sân bóng đá chất lượng', 2, 'active', '2026-02-05 17:24:33');
 
 -- --------------------------------------------------------
 
@@ -85,8 +86,8 @@ CREATE TABLE `field_images` (
 --
 
 INSERT INTO `field_images` (`id`, `field_id`, `image_url`, `is_primary`, `created_at`) VALUES
-(1, 2, 'https://encrypted-tbn2.gstatic.com/licensed-image?q=tbn:ANd9GcQqVysCRFWUFAwhuKIY0f3o5XGUx-NBeLFD1l376NyBj-U3PVpXpjvzb6yQZIkheD3TcUuhsmIiN9e1S5Q', 0, '2026-01-30 22:17:16'),
-(2, 2, 'https://upload.wikimedia.org/wikipedia/commons/7/76/2025_04_26_Final_de_la_Copa_del_Rey_-_Vin%C3%ADcius_J%C3%BAnior.jpg', 0, '2026-01-30 22:18:58');
+(3, 3, '/uploads/1769963355774-sh5awcbe.jpg', 1, '2026-02-01 23:29:15'),
+(4, 4, '/uploads/1770287073797-sa2hqaw9.jpg', 1, '2026-02-05 17:24:33');
 
 -- --------------------------------------------------------
 
@@ -100,6 +101,16 @@ CREATE TABLE `field_prices` (
   `time_slot_id` int(11) NOT NULL,
   `price` decimal(10,2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `field_prices`
+--
+
+INSERT INTO `field_prices` (`id`, `field_id`, `time_slot_id`, `price`) VALUES
+(1, 3, 1, 1000000.00),
+(2, 3, 2, 1000000.00),
+(3, 4, 3, 1000000.00),
+(4, 4, 4, 1000000.00);
 
 -- --------------------------------------------------------
 
@@ -120,7 +131,7 @@ CREATE TABLE `owners` (
 --
 
 INSERT INTO `owners` (`id`, `user_id`, `owner_name`, `phone`, `created_at`) VALUES
-(1, 5, 'Tiến Phạm', '', '2026-01-30 22:03:21');
+(2, 7, 'Tiến Phạm', '', '2026-02-01 23:29:15');
 
 -- --------------------------------------------------------
 
@@ -137,6 +148,15 @@ CREATE TABLE `reviews` (
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Đang đổ dữ liệu cho bảng `reviews`
+--
+
+INSERT INTO `reviews` (`id`, `customer_id`, `field_id`, `rating`, `comment`, `created_at`) VALUES
+(1, 9, 3, 5, 'tệ', '2026-02-05 17:46:43'),
+(6, 9, 3, 3, 'ok', '2026-02-05 17:55:35'),
+(7, 9, 4, 5, 'oki', '2026-02-14 14:07:37');
+
 -- --------------------------------------------------------
 
 --
@@ -149,6 +169,16 @@ CREATE TABLE `time_slots` (
   `end_time` time NOT NULL,
   `type` enum('normal','peak') DEFAULT 'normal'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `time_slots`
+--
+
+INSERT INTO `time_slots` (`id`, `start_time`, `end_time`, `type`) VALUES
+(1, '17:00:00', '18:00:00', 'peak'),
+(2, '18:00:00', '19:00:00', 'peak'),
+(3, '17:00:00', '18:30:00', 'peak'),
+(4, '18:30:00', '20:00:00', 'peak');
 
 -- --------------------------------------------------------
 
@@ -172,8 +202,8 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `clerk_user_id`, `name`, `email`, `phone`, `role`, `created_at`) VALUES
 (1, '', 'Admin', 'admin@gmail.com', NULL, 'admin', '2026-01-29 22:21:56'),
-(5, 'user_38ytuoQSZfuSCautDmRhtLFR0jq', 'Tiến Phạm', 'ngoctien30804@gmail.com', NULL, 'owner', '2026-01-30 21:37:44'),
-(6, 'user_38ytxv4q5OKFN6boTbsICIztRgg', 'Tiến', 'trieng02@gmail.com', NULL, 'customer', '2026-01-30 21:38:10');
+(7, 'user_394jsFqCB3KdkBbm0GpF4FQANdF', 'Tiến Phạm', 'ngoctien30804@gmail.com', NULL, 'owner', '2026-02-01 23:14:05'),
+(9, 'user_394jv4J9a2pDwoVuw67rghzpHg8', 'Tiến', 'trieng02@gmail.com', NULL, 'customer', '2026-02-05 17:19:12');
 
 --
 -- Chỉ mục cho các bảng đã đổ
@@ -222,7 +252,6 @@ ALTER TABLE `owners`
 --
 ALTER TABLE `reviews`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `customer_id` (`customer_id`,`field_id`),
   ADD KEY `fk_review_field` (`field_id`);
 
 --
@@ -252,43 +281,43 @@ ALTER TABLE `bookings`
 -- AUTO_INCREMENT cho bảng `fields`
 --
 ALTER TABLE `fields`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT cho bảng `field_images`
 --
 ALTER TABLE `field_images`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT cho bảng `field_prices`
 --
 ALTER TABLE `field_prices`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT cho bảng `owners`
 --
 ALTER TABLE `owners`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT cho bảng `reviews`
 --
 ALTER TABLE `reviews`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT cho bảng `time_slots`
 --
 ALTER TABLE `time_slots`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT cho bảng `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- Các ràng buộc cho các bảng đã đổ
@@ -331,7 +360,6 @@ ALTER TABLE `owners`
 -- Các ràng buộc cho bảng `reviews`
 --
 ALTER TABLE `reviews`
-  ADD CONSTRAINT `fk_review_customer` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_review_field` FOREIGN KEY (`field_id`) REFERENCES `fields` (`id`) ON DELETE CASCADE;
 COMMIT;
 

@@ -1,199 +1,361 @@
 import { db } from "../config/db.js";
 
+const APP_BASE_URL = (process.env.APP_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+
+const toImageUrl = (rawUrl) => {
+    if (!rawUrl) return null;
+    if (String(rawUrl).startsWith("http")) return rawUrl;
+    return `${APP_BASE_URL}${String(rawUrl).startsWith("/") ? "" : "/"}${rawUrl}`;
+};
+
+const normalizeBoolean = (value) => value === true || value === 1 || value === "1";
+
+const calculateReviewStats = (reviews) => {
+    const count = reviews.length;
+    if (count === 0) {
+        return { average_rating: 0, review_count: 0 };
+    }
+
+    const total = reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0);
+    return {
+        average_rating: total / count,
+        review_count: count,
+    };
+};
+
+const calculateRemainingSlots = (fieldId, fieldPriceRows, bookingRows) => {
+    const availableSlotIds = new Set(
+        fieldPriceRows.filter((row) => row.field_id === fieldId).map((row) => row.time_slot_id)
+    );
+
+    const bookedSlotIds = new Set(
+        bookingRows
+            .filter((row) => row.field_id === fieldId)
+            .map((row) => row.time_slot_id)
+    );
+
+    return Math.max(availableSlotIds.size - bookedSlotIds.size, 0);
+};
+
 export const getAllFields = async (req, res) => {
     try {
-        // Lấy thông tin sân kèm ảnh chính, số slot còn lại và review trung bình
-        const query = `
-            SELECT 
-                f.*,
-                COALESCE(
-                    (SELECT image_url FROM field_images WHERE field_id = f.id AND is_primary = 1 LIMIT 1),
-                    (SELECT image_url FROM field_images WHERE field_id = f.id LIMIT 1),
-                    NULL
-                ) as primary_image,
-                COALESCE(
-                    (SELECT COUNT(DISTINCT fp.time_slot_id) 
-                     FROM field_prices fp 
-                     WHERE fp.field_id = f.id) - 
-                    (SELECT COUNT(DISTINCT b.time_slot_id) 
-                     FROM bookings b 
-                     WHERE b.field_id = f.id 
-                     AND b.booking_date >= CURDATE() 
-                     AND b.status IN ('pending', 'approved')),
-                    0
-                ) as remaining_slots,
-                COALESCE(
-                    (SELECT AVG(rating) FROM reviews WHERE field_id = f.id),
-                    0
-                ) as average_rating,
-                COALESCE(
-                    (SELECT COUNT(*) FROM reviews WHERE field_id = f.id),
-                    0
-                ) as review_count
-            FROM fields f
-            ORDER BY f.created_at DESC
-        `;
-        const [fieldRows] = await db.query(query);
-        
-        // Format lại dữ liệu
-        const fields = fieldRows.map(field => ({
-            ...field,
-            primary_image: field.primary_image ? 
-                (field.primary_image.startsWith('http') ? field.primary_image : `http://localhost:3000${field.primary_image}`) : 
-                null,
-            remaining_slots: parseInt(field.remaining_slots) || 0,
-            average_rating: parseFloat(field.average_rating) || 0,
-            review_count: parseInt(field.review_count) || 0
-        }));
-        
-        res.status(200).json({ fields });
+        const { data: fields, error: fieldsError } = await db
+            .from("fields")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+        if (fieldsError) {
+            throw fieldsError;
+        }
+
+        if (!fields || fields.length === 0) {
+            return res.status(200).json({ fields: [] });
+        }
+
+        const fieldIds = fields.map((field) => field.id);
+        const today = new Date().toISOString().slice(0, 10);
+
+        const [imagesResult, pricesResult, bookingsResult, reviewsResult] = await Promise.all([
+            db
+                .from("field_images")
+                .select("field_id, image_url, is_primary")
+                .in("field_id", fieldIds)
+                .order("created_at", { ascending: false }),
+            db.from("field_prices").select("field_id, time_slot_id").in("field_id", fieldIds),
+            db
+                .from("bookings")
+                .select("field_id, time_slot_id")
+                .in("field_id", fieldIds)
+                .gte("booking_date", today)
+                .in("status", ["pending", "approved"]),
+            db.from("reviews").select("field_id, rating").in("field_id", fieldIds),
+        ]);
+
+        if (imagesResult.error) throw imagesResult.error;
+        if (pricesResult.error) throw pricesResult.error;
+        if (bookingsResult.error) throw bookingsResult.error;
+        if (reviewsResult.error) throw reviewsResult.error;
+
+        const imagesByField = new Map();
+        for (const image of imagesResult.data || []) {
+            if (!imagesByField.has(image.field_id)) {
+                imagesByField.set(image.field_id, []);
+            }
+            imagesByField.get(image.field_id).push(image);
+        }
+
+        const reviewsByField = new Map();
+        for (const review of reviewsResult.data || []) {
+            if (!reviewsByField.has(review.field_id)) {
+                reviewsByField.set(review.field_id, []);
+            }
+            reviewsByField.get(review.field_id).push(review);
+        }
+
+        const formattedFields = fields.map((field) => {
+            const fieldImages = imagesByField.get(field.id) || [];
+            const primaryImage =
+                fieldImages.find((image) => normalizeBoolean(image.is_primary)) || fieldImages[0] || null;
+
+            const reviewStats = calculateReviewStats(reviewsByField.get(field.id) || []);
+
+            return {
+                ...field,
+                primary_image: toImageUrl(primaryImage?.image_url || null),
+                remaining_slots: calculateRemainingSlots(field.id, pricesResult.data || [], bookingsResult.data || []),
+                average_rating: Number(reviewStats.average_rating) || 0,
+                review_count: Number(reviewStats.review_count) || 0,
+            };
+        });
+
+        return res.status(200).json({ fields: formattedFields });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error.message });
+        console.error(error);
+        return res.status(500).json({ error: error.message });
     }
 };
 
-// Lấy chi tiết 1 sân: thông tin, ảnh, slot còn lại, rating + danh sách review
 export const getFieldDetail = async (req, res) => {
     try {
-        const fieldId = req.params.id;
-        if (!fieldId) {
-            return res.status(400).json({ message: "Thiếu id sân" });
+        const fieldId = Number(req.params.id);
+        if (!Number.isFinite(fieldId)) {
+            return res.status(400).json({ message: "Missing or invalid field id" });
         }
 
-        const fieldQuery = `
-            SELECT 
-                f.*,
-                COALESCE(
-                    (SELECT COUNT(DISTINCT fp.time_slot_id) 
-                     FROM field_prices fp 
-                     WHERE fp.field_id = f.id) - 
-                    (SELECT COUNT(DISTINCT b.time_slot_id) 
-                     FROM bookings b 
-                     WHERE b.field_id = f.id 
-                     AND b.booking_date >= CURDATE() 
-                     AND b.status IN ('pending', 'approved')),
-                    0
-                ) as remaining_slots,
-                COALESCE(
-                    (SELECT AVG(rating) FROM reviews WHERE field_id = f.id),
-                    0
-                ) as average_rating,
-                COALESCE(
-                    (SELECT COUNT(*) FROM reviews WHERE field_id = f.id),
-                    0
-                ) as review_count
-            FROM fields f
-            WHERE f.id = ?
-            LIMIT 1
-        `;
-        const [fieldRows] = await db.query(fieldQuery, [fieldId]);
-        if (fieldRows.length === 0) {
-            return res.status(404).json({ message: "Không tìm thấy sân" });
+        const { data: field, error: fieldError } = await db
+            .from("fields")
+            .select("*")
+            .eq("id", fieldId)
+            .maybeSingle();
+
+        if (fieldError) {
+            throw fieldError;
         }
 
-        const field = fieldRows[0];
+        if (!field) {
+            return res.status(404).json({ message: "Field not found" });
+        }
 
-        const [imageRows] = await db.query(
-            "SELECT id, image_url, is_primary FROM field_images WHERE field_id = ? ORDER BY is_primary DESC, created_at DESC",
-            [fieldId]
-        );
+        const today = new Date().toISOString().slice(0, 10);
 
-        const images = imageRows.map((img) => ({
-            ...img,
-            image_url: img.image_url.startsWith("http")
-                ? img.image_url
-                : `http://localhost:3000${img.image_url}`,
-        }));
+        const [imagesResult, reviewsResult, pricesResult, bookingsResult] = await Promise.all([
+            db
+                .from("field_images")
+                .select("id, image_url, is_primary")
+                .eq("field_id", fieldId)
+                .order("is_primary", { ascending: false })
+                .order("created_at", { ascending: false }),
+            db
+                .from("reviews")
+                .select("id, customer_id, rating, comment, created_at")
+                .eq("field_id", fieldId)
+                .order("created_at", { ascending: false }),
+            db.from("field_prices").select("time_slot_id, price").eq("field_id", fieldId),
+            db
+                .from("bookings")
+                .select("time_slot_id")
+                .eq("field_id", fieldId)
+                .gte("booking_date", today)
+                .in("status", ["pending", "approved"]),
+        ]);
 
-        const [reviewRows] = await db.query(
-            `SELECT r.id,
-                    r.customer_id,
-                    r.rating,
-                    r.comment,
-                    r.created_at,
-                    u.name AS customer_name,
-                    u.clerk_user_id
-             FROM reviews r
-             JOIN users u ON u.id = r.customer_id
-             WHERE r.field_id = ?
-             ORDER BY r.created_at DESC`,
-            [fieldId]
-        );
+        if (imagesResult.error) throw imagesResult.error;
+        if (reviewsResult.error) throw reviewsResult.error;
+        if (pricesResult.error) throw pricesResult.error;
+        if (bookingsResult.error) throw bookingsResult.error;
 
-        const [slotRows] = await db.query(
-            `SELECT 
-                ts.id as time_slot_id,
-                ts.start_time,
-                ts.end_time,
-                ts.type,
-                fp.price
-             FROM field_prices fp
-             JOIN time_slots ts ON ts.id = fp.time_slot_id
-             WHERE fp.field_id = ?
-             ORDER BY ts.start_time ASC`,
-            [fieldId]
-        );
+        const customerIds = [...new Set((reviewsResult.data || []).map((review) => review.customer_id))];
+        let userMap = new Map();
+
+        if (customerIds.length > 0) {
+            const { data: users, error: usersError } = await db
+                .from("users")
+                .select("id, name, clerk_user_id")
+                .in("id", customerIds);
+
+            if (usersError) {
+                throw usersError;
+            }
+
+            userMap = new Map((users || []).map((user) => [user.id, user]));
+        }
+
+        const reviews = (reviewsResult.data || []).map((review) => {
+            const user = userMap.get(review.customer_id) || null;
+            return {
+                ...review,
+                customer_name: user?.name || null,
+                clerk_user_id: user?.clerk_user_id || null,
+            };
+        });
+
+        const timeSlotIds = [...new Set((pricesResult.data || []).map((price) => price.time_slot_id))];
+        let timeSlotMap = new Map();
+
+        if (timeSlotIds.length > 0) {
+            const { data: timeSlots, error: slotError } = await db
+                .from("time_slots")
+                .select("id, start_time, end_time, type")
+                .in("id", timeSlotIds)
+                .order("start_time", { ascending: true });
+
+            if (slotError) {
+                throw slotError;
+            }
+
+            timeSlotMap = new Map((timeSlots || []).map((slot) => [slot.id, slot]));
+        }
+
+        const timeSlots = (pricesResult.data || [])
+            .map((price) => {
+                const slot = timeSlotMap.get(price.time_slot_id);
+                if (!slot) return null;
+
+                return {
+                    time_slot_id: slot.id,
+                    start_time: slot.start_time,
+                    end_time: slot.end_time,
+                    type: slot.type,
+                    price: price.price,
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)));
+
+        const reviewStats = calculateReviewStats(reviews);
 
         const formattedField = {
             ...field,
-            remaining_slots: parseInt(field.remaining_slots) || 0,
-            average_rating: parseFloat(field.average_rating) || 0,
-            review_count: parseInt(field.review_count) || 0,
+            remaining_slots: Math.max(
+                new Set((pricesResult.data || []).map((item) => item.time_slot_id)).size -
+                    new Set((bookingsResult.data || []).map((item) => item.time_slot_id)).size,
+                0
+            ),
+            average_rating: Number(reviewStats.average_rating) || 0,
+            review_count: Number(reviewStats.review_count) || 0,
         };
 
-        res.status(200).json({
+        const images = (imagesResult.data || []).map((image) => ({
+            ...image,
+            image_url: toImageUrl(image.image_url),
+        }));
+
+        return res.status(200).json({
             field: formattedField,
             images,
-            reviews: reviewRows,
-            time_slots: slotRows,
+            reviews,
+            time_slots: timeSlots,
         });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error.message });
+        console.error(error);
+        return res.status(500).json({ error: error.message });
     }
 };
 
-/** Lấy danh sách sân của chủ sân (theo clerk_user_id) */
 export const getFieldsByOwner = async (req, res) => {
     try {
         const { clerk_user_id } = req.params;
-        const [users] = await db.query('SELECT id FROM users WHERE clerk_user_id = ? AND role = ?', [clerk_user_id, 'owner']);
-        if (users.length === 0) {
+
+        const { data: user, error: userError } = await db
+            .from("users")
+            .select("id")
+            .eq("clerk_user_id", clerk_user_id)
+            .eq("role", "owner")
+            .maybeSingle();
+
+        if (userError) {
+            throw userError;
+        }
+
+        if (!user) {
             return res.status(200).json({ fields: [] });
         }
-        const userId = users[0].id;
-        const [owners] = await db.query('SELECT id FROM owners WHERE user_id = ?', [userId]);
-        if (owners.length === 0) {
+
+        const { data: owner, error: ownerError } = await db
+            .from("owners")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+        if (ownerError) {
+            throw ownerError;
+        }
+
+        if (!owner) {
             return res.status(200).json({ fields: [] });
         }
-        const ownerId = owners[0].id;
-        const [fields] = await db.query(
-            'SELECT fi.image_url, f.id, f.field_name, f.province, f.district, f.ward, f.street_address, f.description, f.status, f.created_at FROM fields f INNER JOIN field_images fi ON f.id = fi.field_id WHERE f.owner_id = ? and fi.is_primary = 1 ORDER BY f.created_at DESC',
-            [ownerId]
-        );
-        res.status(200).json({ fields });
+
+        const { data: fields, error: fieldsError } = await db
+            .from("fields")
+            .select("id, field_name, province, district, ward, street_address, description, status, created_at")
+            .eq("owner_id", owner.id)
+            .order("created_at", { ascending: false });
+
+        if (fieldsError) {
+            throw fieldsError;
+        }
+
+        if (!fields || fields.length === 0) {
+            return res.status(200).json({ fields: [] });
+        }
+
+        const fieldIds = fields.map((field) => field.id);
+        const { data: images, error: imageError } = await db
+            .from("field_images")
+            .select("field_id, image_url")
+            .in("field_id", fieldIds)
+            .eq("is_primary", true);
+
+        if (imageError) {
+            throw imageError;
+        }
+
+        const imageByFieldId = new Map((images || []).map((img) => [img.field_id, img.image_url]));
+
+        const merged = fields
+            .map((field) => ({
+                image_url: imageByFieldId.get(field.id) || null,
+                ...field,
+            }))
+            .filter((field) => field.image_url);
+
+        return res.status(200).json({ fields: merged });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error.message });
+        console.error(error);
+        return res.status(500).json({ error: error.message });
     }
 };
 
-/** Lấy hoặc tạo time_slot, trả về time_slot id */
-async function getOrCreateTimeSlot(startTime, endTime, type = 'normal') {
-    const [rows] = await db.query(
-        'SELECT id FROM time_slots WHERE start_time = ? AND end_time = ? AND type = ? LIMIT 1',
-        [startTime, endTime, type]
-    );
-    if (rows.length > 0) return rows[0].id;
-    const [insertResult] = await db.query(
-        'INSERT INTO time_slots (start_time, end_time, type) VALUES (?, ?, ?)',
-        [startTime, endTime, type]
-    );
-    return insertResult.insertId;
+async function getOrCreateTimeSlot(startTime, endTime, type = "normal") {
+    const { data: existing, error: existingError } = await db
+        .from("time_slots")
+        .select("id")
+        .eq("start_time", startTime)
+        .eq("end_time", endTime)
+        .eq("type", type)
+        .limit(1);
+
+    if (existingError) {
+        throw existingError;
+    }
+
+    if (existing && existing.length > 0) {
+        return existing[0].id;
+    }
+
+    const { data: inserted, error: insertError } = await db
+        .from("time_slots")
+        .insert([{ start_time: startTime, end_time: endTime, type }])
+        .select("id")
+        .single();
+
+    if (insertError) {
+        throw insertError;
+    }
+
+    return inserted.id;
 }
 
-/** Tạo sân mới: name, province, ward, address, desc, ảnh (upload hoặc URL), slot. */
 export const createField = async (req, res) => {
     try {
         const body = req.body || {};
@@ -206,7 +368,7 @@ export const createField = async (req, res) => {
         const description = body.description;
 
         let slots = body.slots;
-        if (typeof slots === 'string') {
+        if (typeof slots === "string") {
             try {
                 slots = JSON.parse(slots);
             } catch {
@@ -217,72 +379,127 @@ export const createField = async (req, res) => {
 
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
-            imageUrls = req.files.map((f) => '/uploads/' + f.filename);
+            imageUrls = req.files.map((file) => `/uploads/${file.filename}`);
         } else if (Array.isArray(body.images)) {
-            imageUrls = body.images.filter((u) => u && String(u).trim());
+            imageUrls = body.images.filter((url) => url && String(url).trim());
         }
 
         if (!clerk_user_id || !field_name || !province || !ward || !street_address) {
             return res.status(400).json({
-                message: 'Thiếu thông tin: clerk_user_id, field_name, province, ward, street_address'
+                message: "Missing required fields: clerk_user_id, field_name, province, ward, street_address",
             });
         }
 
-        const [users] = await db.query(
-            'SELECT id, name FROM users WHERE clerk_user_id = ? AND role = ?',
-            [clerk_user_id, 'owner']
-        );
-        if (users.length === 0) {
-            return res.status(403).json({ message: 'Chỉ chủ sân mới được tạo sân.' });
-        }
-        const userId = users[0].id;
-        const ownerName = users[0].name || 'Chủ sân';
-        const [ownerRows] = await db.query('SELECT id FROM owners WHERE user_id = ?', [userId]);
-        let ownerId;
-        if (ownerRows.length === 0) {
-            const [insertOwner] = await db.query(
-                'INSERT INTO owners (user_id, owner_name, phone) VALUES (?, ?, ?)',
-                [userId, ownerName, '']
-            );
-            ownerId = insertOwner.insertId;
-        } else {
-            ownerId = ownerRows[0].id;
+        const { data: user, error: userError } = await db
+            .from("users")
+            .select("id, name")
+            .eq("clerk_user_id", clerk_user_id)
+            .eq("role", "owner")
+            .maybeSingle();
+
+        if (userError) {
+            throw userError;
         }
 
-        const districtVal = district || '';
-
-        const [insertField] = await db.query(
-            'INSERT INTO fields (field_name, province, district, ward, street_address, description, owner_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [field_name, province, districtVal, ward, street_address, description || null, ownerId, 'active']
-        );
-        const fieldId = insertField.insertId;
-
-        for (let i = 0; i < imageUrls.length; i++) {
-            const url = String(imageUrls[i]).trim();
-            if (!url) continue;
-            await db.query(
-                'INSERT INTO field_images (field_id, image_url, is_primary) VALUES (?, ?, ?)',
-                [fieldId, url, i === 0 ? 1 : 0]
-            );
+        if (!user) {
+            return res.status(403).json({ message: "Only owner accounts can create fields." });
         }
 
-        const slotList = slots;
-        for (const slot of slotList) {
+        const ownerName = user.name || "Owner";
+        const { data: ownerRow, error: ownerLookupError } = await db
+            .from("owners")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+        if (ownerLookupError) {
+            throw ownerLookupError;
+        }
+
+        let ownerId = ownerRow?.id;
+
+        if (!ownerId) {
+            const { data: ownerInserted, error: ownerInsertError } = await db
+                .from("owners")
+                .insert([{ user_id: user.id, owner_name: ownerName, phone: "" }])
+                .select("id")
+                .single();
+
+            if (ownerInsertError) {
+                throw ownerInsertError;
+            }
+
+            ownerId = ownerInserted.id;
+        }
+
+        const { data: insertedField, error: fieldInsertError } = await db
+            .from("fields")
+            .insert([
+                {
+                    field_name,
+                    province,
+                    district: district || "",
+                    ward,
+                    street_address,
+                    description: description || null,
+                    owner_id: ownerId,
+                    status: "active",
+                },
+            ])
+            .select("id")
+            .single();
+
+        if (fieldInsertError) {
+            throw fieldInsertError;
+        }
+
+        const fieldId = insertedField.id;
+
+        if (imageUrls.length > 0) {
+            const imageRows = imageUrls
+                .map((url, index) => String(url).trim())
+                .filter(Boolean)
+                .map((url, index) => ({
+                    field_id: fieldId,
+                    image_url: url,
+                    is_primary: index === 0,
+                }));
+
+            if (imageRows.length > 0) {
+                const { error: imagesError } = await db.from("field_images").insert(imageRows);
+                if (imagesError) {
+                    throw imagesError;
+                }
+            }
+        }
+
+        for (const slot of slots) {
             const startTime = slot.start_time || slot.startTime;
             const endTime = slot.end_time || slot.endTime;
-            const type = (slot.type === 'peak' ? 'peak' : 'normal');
+            const type = slot.type === "peak" ? "peak" : "normal";
             const price = Number(slot.price);
-            if (!startTime || !endTime || !Number.isFinite(price) || price < 0) continue;
+
+            if (!startTime || !endTime || !Number.isFinite(price) || price < 0) {
+                continue;
+            }
+
             const timeSlotId = await getOrCreateTimeSlot(startTime, endTime, type);
-            await db.query(
-                'INSERT INTO field_prices (field_id, time_slot_id, price) VALUES (?, ?, ?)',
-                [fieldId, timeSlotId, price]
-            );
+            const { error: priceError } = await db.from("field_prices").insert([
+                {
+                    field_id: fieldId,
+                    time_slot_id: timeSlotId,
+                    price,
+                },
+            ]);
+
+            if (priceError && priceError.code !== "23505") {
+                throw priceError;
+            }
         }
 
-        res.status(201).json({ message: 'Tạo sân thành công.', fieldId });
+        return res.status(201).json({ message: "Create field successful.", fieldId });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error.message });
+        console.error(error);
+        return res.status(500).json({ error: error.message });
     }
 };
