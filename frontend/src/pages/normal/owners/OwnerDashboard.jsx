@@ -1,28 +1,30 @@
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/clerk-react";
 import axios from "axios";
-import { MapPin, Plus, Loader2, Building2, ImagePlus, Clock, Trash2 } from "lucide-react";
+import { Plus, Loader2, Building2, ImagePlus, Clock, Trash2, Check, X } from "lucide-react";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 const API_BASE = "http://localhost:3000/api";
 
-const defaultSlot = () => ({ start_time: "17:00", end_time: "18:00", type: "normal", price: "" });
-
 const OwnerDashboard = () => {
   const { user } = useUser();
+  const navigate = useNavigate();
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingField, setEditingField] = useState(null);
   const [form, setForm] = useState({
     field_name: "",
-    province: "",
-    district: "",
-    ward: "",
-    street_address: "",
+    address: "",
     description: "",
-    slots: [defaultSlot()],
   });
   const [imageFiles, setImageFiles] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
+  const [updatingBookingId, setUpdatingBookingId] = useState(null);
+  const [fieldToDelete, setFieldToDelete] = useState(null);
 
   const fetchFields = async () => {
     if (!user?.id) return;
@@ -38,9 +40,42 @@ const OwnerDashboard = () => {
     }
   };
 
+  const fetchOwnerBookings = async () => {
+    if (!user?.id) return;
+    setLoadingBookings(true);
+    try {
+      const res = await axios.get(`${API_BASE}/bookings/owner/${user.id}`);
+      setBookings(res.data.bookings || []);
+    } catch (err) {
+      console.error(err);
+      setBookings([]);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
   useEffect(() => {
     fetchFields();
+    fetchOwnerBookings();
   }, [user?.id]);
+
+  const handleUpdateBookingStatus = async (bookingId, status) => {
+    if (!user?.id) return;
+    try {
+      setUpdatingBookingId(bookingId);
+      await axios.patch(`${API_BASE}/bookings/${bookingId}/status`, {
+        clerk_user_id: user.id,
+        status,
+      });
+      await fetchOwnerBookings();
+      toast.success(status === "approved" ? "Đã xác nhận đặt sân." : "Đã từ chối đặt sân.");
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Có lỗi khi cập nhật trạng thái đặt sân.");
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -55,65 +90,40 @@ const OwnerDashboard = () => {
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const addSlot = () => {
-    setForm((prev) => ({ ...prev, slots: [...prev.slots, defaultSlot()] }));
-  };
-  const setSlot = (index, key, value) => {
-    setForm((prev) => {
-      const next = prev.slots.map((s, i) =>
-        i === index ? { ...s, [key]: value } : s
-      );
-      return { ...prev, slots: next };
-    });
-  };
-  const removeSlot = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      slots: prev.slots.filter((_, i) => i !== index),
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user?.id) return;
     setSubmitting(true);
     try {
-      const slots = form.slots
-        .filter((s) => s.start_time && s.end_time && s.price !== "" && Number(s.price) >= 0)
-        .map((s) => ({
-          start_time: s.start_time,
-          end_time: s.end_time,
-          type: s.type || "normal",
-          price: Number(s.price),
-        }));
-
       const data = new FormData();
       data.append("clerk_user_id", user.id);
       data.append("field_name", form.field_name);
-      data.append("province", form.province);
-      data.append("district", form.district || "");
-      data.append("ward", form.ward);
-      data.append("street_address", form.street_address);
+      data.append("address", form.address);
       data.append("description", form.description || "");
-      data.append("slots", JSON.stringify(slots));
+      if (editingField?.status) {
+        data.append("status", editingField.status);
+      }
       imageFiles.forEach((file) => data.append("images", file));
 
-      await axios.post(`${API_BASE}/fields`, data);
+      if (editingField) {
+        await axios.put(`${API_BASE}/fields/${editingField.id}`, data);
+        toast.success("Đã cập nhật sân.");
+      } else {
+        await axios.post(`${API_BASE}/fields`, data);
+        toast.success("Đã tạo sân mới.");
+      }
       setForm({
         field_name: "",
-        province: "",
-        district: "",
-        ward: "",
-        street_address: "",
+        address: "",
         description: "",
-        slots: [defaultSlot()],
       });
       setImageFiles([]);
       setShowForm(false);
+      setEditingField(null);
       await fetchFields();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || err.message || "Có lỗi khi tạo sân.");
+      toast.error(err.response?.data?.message || err.message || "Có lỗi khi lưu sân.");
     } finally {
       setSubmitting(false);
     }
@@ -122,6 +132,18 @@ const OwnerDashboard = () => {
   const inputClass =
     "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none";
   const labelClass = "block text-slate-700 text-sm font-medium mb-1";
+  const getStatusBadgeClass = (status) => {
+    if (status === "approved") return "bg-emerald-100 text-emerald-700";
+    if (status === "rejected") return "bg-rose-100 text-rose-700";
+    if (status === "cancelled") return "bg-slate-100 text-slate-600";
+    return "bg-amber-100 text-amber-700";
+  };
+  const getStatusText = (status) => {
+    if (status === "approved") return "Đã xác nhận";
+    if (status === "rejected") return "Từ chối";
+    if (status === "cancelled") return "Đã hủy";
+    return "Đang chờ";
+  };
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
@@ -157,43 +179,76 @@ const OwnerDashboard = () => {
       ) : (
         <ul className="space-y-3">
           {fields.map((f) => {
-            console.log(f)
             return (
               <li
                 key={f.id}
                 className="flex items-center justify-between gap-4 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition cursor-pointer"
+                onClick={() => navigate(`/owners/fields/${f.id}`)}
               >
-                <div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="font-medium text-slate-800">{f.field_name}</h2>
-                    <p className="text-slate-500 text-sm mt-0.5">
-                      {f.street_address}, {f.ward}, {f.district}, {f.province}
-                    </p>
-                    {f.description && (
-                      <p className="text-slate-600 text-sm mt-1 line-clamp-2">{f.description}</p>
-                    )}
-                    <span
-                      className={`inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium ${f.status === "active"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-600"
-                        }`}
-                    >
-                      {f.status === "active" ? "Hoạt động" : "Tạm dừng"}
-                    </span>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="font-medium text-slate-800">{f.field_name}</h2>
+                      <p className="text-slate-500 text-sm mt-0.5">
+                        {f.address}
+                      </p>
+                      {f.description && (
+                        <p className="text-slate-600 text-sm mt-1 line-clamp-2">{f.description}</p>
+                      )}
+                      <span
+                        className={`inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium ${f.status === "active"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-100 text-slate-600"
+                          }`}
+                      >
+                        {f.status === "active" ? "Hoạt động" : "Tạm dừng"}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  {f.image_url && f.image_url.length > 0 ? (
-                    <img
-                      src={'http://localhost:3000' + f.image_url}
-                      alt={f.field_name}
-                      className="w-16 h-16 rounded-lg object-cover border border-slate-200"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
-                      <ImagePlus className="w-6 h-6 text-slate-300" />
-                    </div>
-                  )}
+                <div className="flex items-center gap-3">
+                  <div>
+                    {f.image_url && f.image_url.length > 0 ? (
+                      <img
+                        src={'http://localhost:3000' + f.image_url}
+                        alt={f.field_name}
+                        className="w-16 h-16 rounded-lg object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
+                        <ImagePlus className="w-6 h-6 text-slate-300" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setEditingField(f);
+                        setForm({
+                          field_name: f.field_name || "",
+                          address: f.address || "",
+                          description: f.description || "",
+                        });
+                        setImageFiles([]);
+                        setShowForm(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Sửa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setFieldToDelete(f);
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                    >
+                      Xóa
+                    </button>
+                  </div>
                 </div>
               </li>
             )
@@ -201,11 +256,123 @@ const OwnerDashboard = () => {
         </ul>
       )}
 
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-slate-800">Yêu cầu đặt sân</h2>
+          {loadingBookings && <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />}
+        </div>
+
+        {loadingBookings ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+            Đang tải danh sách đặt sân...
+          </div>
+        ) : bookings.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+            Chưa có yêu cầu đặt sân nào.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {bookings.map((booking) => (
+              <div key={booking.id} className="bg-white border border-slate-200 rounded-xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-800">
+                    {booking.field?.field_name || "San"} - {booking.booking_date}
+                  </p>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusBadgeClass(booking.status)}`}>
+                    {getStatusText(booking.status)}
+                  </span>
+                </div>
+
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-600">
+                  <p>
+                    Khách: {booking.customer?.name || "Khách hàng"} ({booking.customer?.email || "Không có email"})
+                  </p>
+                  <p>
+                    Khung giờ: {booking.start_time?.slice(0, 5)} - {booking.end_time?.slice(0, 5)}
+                  </p>
+                  <p>Số điện thoại: {booking.contact_phone}</p>
+                  <p>Giá: {Number(booking.total_price || 0).toLocaleString("vi-VN")}d</p>
+                </div>
+
+                {booking.note && <p className="mt-2 text-sm text-slate-500">Ghi chú: {booking.note}</p>}
+
+                {booking.status === "pending" && (
+                  <div className="mt-3 flex gap-2 justify-end">
+                    <button
+                      type="button"
+                      disabled={updatingBookingId === booking.id}
+                      onClick={() => handleUpdateBookingStatus(booking.id, "rejected")}
+                      className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 text-sm font-medium hover:bg-rose-50 disabled:opacity-60 inline-flex items-center gap-1"
+                    >
+                      <X className="w-4 h-4" />
+                      Từ chối
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updatingBookingId === booking.id}
+                      onClick={() => handleUpdateBookingStatus(booking.id, "approved")}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 inline-flex items-center gap-1"
+                    >
+                      <Check className="w-4 h-4" />
+                      Xác nhận
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal xác nhận xóa sân */}
+      {fieldToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-sm w-full p-5 space-y-3">
+            <h2 className="text-sm font-semibold text-slate-800">Xóa sân?</h2>
+            <p className="text-sm text-slate-600">
+              Bạn có chắc chắn muốn xóa sân <span className="font-semibold">{fieldToDelete.field_name}</span>? Tất cả
+              booking, tin nhắn và đánh giá liên quan sẽ bị xóa theo.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setFieldToDelete(null)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs sm:text-sm hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!user?.id || !fieldToDelete) return;
+                  try {
+                    await axios.delete(`${API_BASE}/fields/${fieldToDelete.id}`, {
+                      data: { clerk_user_id: user.id },
+                    });
+                    toast.success("Đã xóa sân.");
+                    setFieldToDelete(null);
+                    await fetchFields();
+                  } catch (err) {
+                    console.error(err);
+                    toast.error(err.response?.data?.message || "Có lỗi khi xóa sân.");
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs sm:text-sm font-medium hover:bg-rose-700"
+              >
+                Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 overflow-y-auto">
           <div className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-lg w-full my-8 max-h-[90vh] overflow-y-auto">
             <div className="px-5 py-4 border-b border-slate-200 sticky top-0 bg-white">
-              <h2 className="text-base font-semibold text-slate-800">Thêm sân</h2>
+              <h2 className="text-base font-semibold text-slate-800">
+                {editingField ? "Sửa sân" : "Thêm sân"}
+              </h2>
             </div>
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div>
@@ -220,53 +387,16 @@ const OwnerDashboard = () => {
                   placeholder="VD: Sân Tuấn Phong"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Tỉnh/Thành *</label>
-                  <input
-                    type="text"
-                    name="province"
-                    value={form.province}
-                    onChange={handleChange}
-                    required
-                    className={inputClass}
-                    placeholder="Hà Nội"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Quận/Huyện</label>
-                  <input
-                    type="text"
-                    name="district"
-                    value={form.district}
-                    onChange={handleChange}
-                    className={inputClass}
-                    placeholder="Thanh Xuân"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Phường/Xã *</label>
-                <input
-                  type="text"
-                  name="ward"
-                  value={form.ward}
-                  onChange={handleChange}
-                  required
-                  className={inputClass}
-                  placeholder="Thanh Trì"
-                />
-              </div>
               <div>
                 <label className={labelClass}>Địa chỉ *</label>
                 <input
                   type="text"
-                  name="street_address"
-                  value={form.street_address}
+                  name="address"
+                  value={form.address}
                   onChange={handleChange}
                   required
                   className={inputClass}
-                  placeholder="Đường Phạm Tu, số 10"
+                  placeholder="VD: Đường Phạm Tu, số 10, Thanh Trì, Thanh Xuân, Hà Nội"
                 />
               </div>
               <div>
@@ -316,69 +446,9 @@ const OwnerDashboard = () => {
                 )}
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className={labelClass}>Khung giờ & giá</label>
-                  <button
-                    type="button"
-                    onClick={addSlot}
-                    className="text-emerald-600 text-xs font-medium inline-flex items-center gap-1"
-                  >
-                    <Clock className="w-3.5 h-3.5" /> Thêm slot
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {form.slots.map((slot, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-wrap items-end gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200"
-                    >
-                      <div className="flex items-center gap-1 shrink-0">
-                        <input
-                          type="time"
-                          value={slot.start_time}
-                          onChange={(e) => setSlot(i, "start_time", e.target.value)}
-                          className="w-25 px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
-                        />
-                        <span className="text-slate-400">–</span>
-                        <input
-                          type="time"
-                          value={slot.end_time}
-                          onChange={(e) => setSlot(i, "end_time", e.target.value)}
-                          className="w-25 px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
-                        />
-                      </div>
-                      <select
-                        value={slot.type}
-                        onChange={(e) => setSlot(i, "type", e.target.value)}
-                        className="w-24 px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
-                      >
-                        <option value="normal">Thường</option>
-                        <option value="peak">Cao điểm</option>
-                      </select>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        value={slot.price}
-                        onChange={(e) => setSlot(i, "price", e.target.value)}
-                        className="w-28 px-2 py-1.5 border border-slate-300 rounded-lg text-sm"
-                        placeholder="Giá (VNĐ)"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSlot(i)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 shrink-0"
-                        title="Xóa slot"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-slate-500 text-xs mt-1">
-                  Slot có giá hợp lệ sẽ được lưu. Có thể bỏ trống nếu chưa có giá.
-                </p>
+              <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-3 text-sm text-emerald-800">
+                Slot đặt sân được hệ thống tự tạo mặc định từ <b>06:00–23:00</b> (1.5 giờ/slot). Giá cố định:{" "}
+                <b>500.000đ</b> (thường) và <b>900.000đ</b> (cao điểm 17h–19h).
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -397,10 +467,10 @@ const OwnerDashboard = () => {
                   {submitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Đang tạo...
+                      {editingField ? "Đang lưu..." : "Đang tạo..."}
                     </>
                   ) : (
-                    "Tạo sân"
+                    editingField ? "Lưu thay đổi" : "Tạo sân"
                   )}
                 </button>
               </div>

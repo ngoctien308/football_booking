@@ -1,6 +1,6 @@
-import { UserButton, useUser, SignedOut, SignInButton, SignedIn } from "@clerk/clerk-react";
+﻿import { UserButton, useUser, SignedOut, SignInButton, SignedIn } from "@clerk/clerk-react";
 import { Search } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 
 const Header = () => {
   const { user } = useUser();
@@ -22,8 +22,18 @@ const Header = () => {
               />
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <SignedIn>
+              <NavLink
+                to="/customers/bookings"
+                className={({ isActive }) =>
+                  `hidden sm:inline text-xs font-medium px-2 py-1 rounded-lg ${
+                    isActive ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:text-emerald-600"
+                  }`
+                }
+              >
+                Lịch đặt của tôi
+              </NavLink>
               <span className="text-slate-600 text-sm hidden sm:inline">{user?.firstName}</span>
               <UserButton afterSignOutUrl="/auth" />
             </SignedIn>

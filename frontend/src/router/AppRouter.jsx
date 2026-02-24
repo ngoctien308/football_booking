@@ -8,7 +8,10 @@ import ChooseRole from '../pages/normal/ChooseRole';
 import AfterSignUp from '../pages/normal/AfterSignUp';
 import HomePage from '../pages/normal/customers/HomePage';
 import FieldDetail from '../pages/normal/customers/FieldDetail';
+import CustomerBookings from '../pages/normal/customers/CustomerBookings';
 import OwnerDashboard from '../pages/normal/owners/OwnerDashboard';
+import OwnerMessages from '../pages/normal/owners/OwnerMessages';
+import OwnerFieldDetail from '../pages/normal/owners/OwnerFieldDetail';
 
 const AppRouter = () => {
   return (
@@ -31,11 +34,14 @@ const AppRouter = () => {
         <Route path="/customers/" element={<CustomerLayout />}>
           <Route path='home-page' element={<HomePage />} />
           <Route path='fields/:id' element={<FieldDetail />} />
+          <Route path='bookings' element={<CustomerBookings />} />
         </Route>
 
         {/* OWNERS */}
         <Route path="/owners" element={<OwnerLayout />}>
           <Route index element={<OwnerDashboard />} />
+          <Route path="messages" element={<OwnerMessages />} />
+          <Route path="fields/:id" element={<OwnerFieldDetail />} />
         </Route>
 
         {/* DEFAULT */}

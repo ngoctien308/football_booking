@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useUser } from "@clerk/clerk-react";
@@ -17,6 +17,7 @@ const AfterSignUp = () => {
       if (!role) navigate("/choose-role");
       return;
     }
+
     if (role !== "customer" && role !== "owner") {
       navigate("/choose-role");
       return;

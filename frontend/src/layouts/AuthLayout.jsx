@@ -1,4 +1,4 @@
-import {
+﻿import {
   SignedIn,
   SignedOut,
   SignInButton,
@@ -47,7 +47,7 @@ const AuthLayout = () => {
           <h1 className="text-xl font-semibold text-slate-800">
             Sân Bóng <span className="text-emerald-600">Pro</span>
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Đặt sân nhanh – Quản lý dễ</p>
+          <p className="text-slate-500 text-sm mt-1">Đặt sân nhanh - Quản lý dễ</p>
         </div>
 
         <div className="p-6">

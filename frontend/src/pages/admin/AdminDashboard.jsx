@@ -1,6 +1,6 @@
 const AdminDashboard = () => {
   return (
-    <div>AdminDashboard</div>
+    <div>Trang quản trị</div>
   )
 }
 

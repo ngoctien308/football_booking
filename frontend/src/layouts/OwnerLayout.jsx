@@ -9,7 +9,15 @@ const OwnerLayout = () => {
         <Link to="/owners" className="text-slate-800 font-medium text-sm">
           Sân Bóng Pro · Chủ sân
         </Link>
-        <UserButton afterSignOutUrl="/auth" />
+        <div className="flex items-center gap-3">
+          <Link
+            to="/owners/messages"
+            className="text-sm font-medium text-slate-600 hover:text-emerald-600"
+          >
+            Tin nhắn
+          </Link>
+          <UserButton afterSignOutUrl="/auth" />
+        </div>
       </header>
       <Outlet />
     </div>

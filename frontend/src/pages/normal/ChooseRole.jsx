@@ -1,8 +1,9 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { User, Store, ArrowRight, LogIn, Loader2 } from "lucide-react";
 import { SignUpButton, useUser } from "@clerk/clerk-react";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const API_BASE = "http://localhost:3000/api";
 
@@ -31,7 +32,7 @@ const ChooseRole = () => {
       if (res.status === 200 || res.status === 201) navigate(`/${role}s`);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || "Có lỗi khi hoàn tất đăng ký.");
+      toast.error(err.response?.data?.message || "Có lỗi khi hoàn tất đăng ký.");
     } finally {
       setSubmitting(false);
     }
