@@ -23,7 +23,7 @@ CREATE TABLE `users` (
   `name` varchar(100) DEFAULT NULL,
   `email` varchar(150) DEFAULT NULL,
   `phone` varchar(20) DEFAULT NULL,
-  `role` enum('customer','owner','admin') NOT NULL,
+  `role` enum('customer','owner') NOT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `clerk_user_id` (`clerk_user_id`)
@@ -143,7 +143,7 @@ CREATE TABLE `messages` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `conversation_id` int(11) NOT NULL,
   `sender_user_id` int(11) NOT NULL,
-  `sender_role` enum('customer','owner','admin') NOT NULL,
+  `sender_role` enum('customer','owner') NOT NULL,
   `content` text NOT NULL,
   `read_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),

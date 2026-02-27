@@ -43,7 +43,7 @@ async function getConversationById(conversationId) {
 
 function canAccessConversation(user, conversation) {
     if (!user || !conversation) return false;
-    return user.id === conversation.customer_id || user.id === conversation.owner_user_id || user.role === "admin";
+    return user.id === conversation.customer_id || user.id === conversation.owner_user_id;
 }
 
 export const getOrCreateConversationByField = async (req, res) => {
