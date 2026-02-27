@@ -88,110 +88,112 @@ const OwnerMessages = () => {
   };
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-6">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-800">Tin nhắn</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Trao đổi với khách đặt sân.</p>
-      </div>
+    <div className="min-h-[calc(100vh-64px)] bg-white">
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <div className="mb-4">
+          <h1 className="text-lg font-semibold text-slate-900">Tin nhắn</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Trao đổi với khách đặt sân.</p>
+        </div>
 
-      {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
-          Đang tải...
-        </div>
-      ) : conversations.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
-          Chưa có cuộc trò chuyện nào.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-[320px,1fr] gap-3">
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 text-sm font-medium text-slate-800">
-              Cuộc trò chuyện
-            </div>
-            <div className="max-h-[70vh] overflow-y-auto">
-              {conversations.map((c) => {
-                const active = c.id === activeId;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setActiveId(c.id)}
-                    className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
-                      active ? "bg-emerald-50" : ""
-                    }`}
-                  >
-                    <div className="text-sm font-medium text-slate-800">
-                      {c.field?.field_name || "Sân"} · {c.customer?.name || "Khách"}
-                    </div>
-                    <div className="text-xs text-slate-500 line-clamp-1 mt-0.5">
-                      {c.last_message || "Chưa có tin nhắn"}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+        {loading ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+            Đang tải...
           </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-200">
-              <div className="text-sm font-medium text-slate-800">
-                {activeConversation?.field?.field_name || "Sân"}
+        ) : conversations.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+            Chưa có cuộc trò chuyện nào.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-[320px,1fr] gap-3">
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="px-4 py-3 border-b border-slate-200 text-sm font-medium text-slate-800">
+                Cuộc trò chuyện
               </div>
-              {activeConversation?.customer?.email && (
-                <div className="text-xs text-slate-500">{activeConversation.customer.email}</div>
-              )}
-            </div>
-
-            <div className="p-4 bg-slate-50 flex-1 overflow-y-auto space-y-2">
-              {loadingMessages ? (
-                <p className="text-sm text-slate-500">Đang tải tin nhắn...</p>
-              ) : messages.length === 0 ? (
-                <p className="text-sm text-slate-500">Chưa có tin nhắn.</p>
-              ) : (
-                messages.map((m) => {
-                  const isMine = m.sender_role === "owner";
+              <div className="max-h-[70vh] overflow-y-auto">
+                {conversations.map((c) => {
+                  const active = c.id === activeId;
                   return (
-                    <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                          isMine ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-700"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap">{m.content}</p>
-                        <p className={`mt-1 text-[11px] ${isMine ? "text-emerald-50/90" : "text-slate-400"}`}>
-                          {new Date(m.created_at).toLocaleString("vi-VN")}
-                        </p>
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setActiveId(c.id)}
+                      className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
+                        active ? "bg-emerald-50" : ""
+                      }`}
+                    >
+                      <div className="text-sm font-medium text-slate-800">
+                        {c.field?.field_name || "Sân"} · {c.customer?.name || "Khách"}
                       </div>
-                    </div>
+                      <div className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                        {c.last_message || "Chưa có tin nhắn"}
+                      </div>
+                    </button>
                   );
-                })
-              )}
+                })}
+              </div>
             </div>
 
-            <div className="p-3 border-t border-slate-200 flex gap-2">
-              <input
-                type="text"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Nhập tin nhắn..."
-                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") send();
-                }}
-              />
-              <button
-                type="button"
-                disabled={sending}
-                onClick={send}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {sending ? "Đang gửi..." : "Gửi"}
-              </button>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col shadow-sm">
+              <div className="px-4 py-3 border-b border-slate-200">
+                <div className="text-sm font-medium text-slate-800">
+                  {activeConversation?.field?.field_name || "Sân"}
+                </div>
+                {activeConversation?.customer?.email && (
+                  <div className="text-xs text-slate-500">{activeConversation.customer.email}</div>
+                )}
+              </div>
+
+              <div className="p-4 bg-slate-50 flex-1 overflow-y-auto space-y-2">
+                {loadingMessages ? (
+                  <p className="text-sm text-slate-500">Đang tải tin nhắn...</p>
+                ) : messages.length === 0 ? (
+                  <p className="text-sm text-slate-500">Chưa có tin nhắn.</p>
+                ) : (
+                  messages.map((m) => {
+                    const isMine = m.sender_role === "owner";
+                    return (
+                      <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                            isMine ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-700"
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap">{m.content}</p>
+                          <p className={`mt-1 text-[11px] ${isMine ? "text-emerald-50/90" : "text-slate-400"}`}>
+                            {new Date(m.created_at).toLocaleString("vi-VN")}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="p-3 border-t border-slate-200 flex gap-2">
+                <input
+                  type="text"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Nhập tin nhắn..."
+                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") send();
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={send}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {sending ? "Đang gửi..." : "Gửi"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </main>
+        )}
+      </main>
+    </div>
   );
 };
 

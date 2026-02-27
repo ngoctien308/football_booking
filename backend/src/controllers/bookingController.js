@@ -1,4 +1,5 @@
 import { db } from "../config/db.js";
+import { stripe } from "../config/stripe.js";
 
 const ACTIVE_BOOKING_STATUSES = ["pending", "approved"];
 const NORMAL_PRICE = 500000;
@@ -96,10 +97,10 @@ export const getFieldAvailability = async (req, res) => {
         const defaultSlots = getDefaultSlots();
 
         const { data: bookedRows, error: bookedError } = await db
-            .from("bookings")
+                    .from("bookings")
             .select("start_time")
-            .eq("field_id", fieldId)
-            .eq("booking_date", bookingDate)
+                    .eq("field_id", fieldId)
+                    .eq("booking_date", bookingDate)
             .in("status", ACTIVE_BOOKING_STATUSES);
 
         if (bookedError) throw bookedError;
@@ -250,7 +251,7 @@ export const getBookingsByCustomer = async (req, res) => {
         }
 
         const rows = bookings.map((booking) => ({
-            ...booking,
+                ...booking,
             field: fieldMap.get(booking.field_id) || null,
         }));
 
@@ -421,3 +422,83 @@ export const payBooking = async (req, res) => {
         return res.status(500).json({ message: "Server error while paying for booking", error: error.message });
     }
 };
+
+export const createStripeCheckoutSession = async (req, res) => {
+    try {
+        if (!stripe) {
+            return res.status(500).json({ message: "Stripe is not configured on the server" });
+        }
+
+        const bookingId = Number(req.params.id);
+        const { clerk_user_id } = req.body || {};
+
+        if (!Number.isFinite(bookingId) || !clerk_user_id) {
+            return res.status(400).json({ message: "Missing or invalid booking id or clerk_user_id" });
+        }
+
+        const customer = await getCustomerByClerkId(clerk_user_id);
+        if (customer.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (customer.error === "NOT_CUSTOMER") return res.status(403).json({ message: "Only customers can pay for bookings" });
+
+        const { data: booking, error: bookingError } = await db
+            .from("bookings")
+            .select("id, customer_id, field_id, start_time, end_time, booking_date, total_price, status, payment_status")
+            .eq("id", bookingId)
+            .maybeSingle();
+        if (bookingError) throw bookingError;
+        if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+        if (booking.customer_id !== customer.id) {
+            return res.status(403).json({ message: "You cannot pay for this booking" });
+        }
+
+        if (booking.status !== "approved") {
+            return res.status(409).json({ message: "Booking must be approved by field owner before payment" });
+        }
+
+        if (booking.payment_status === "paid") {
+            return res.status(409).json({ message: "Booking is already paid" });
+        }
+
+        const amount = Math.round(Number(booking.total_price || 0));
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ message: "Invalid booking price" });
+        }
+
+        const FRONTEND_BASE_URL = (process.env.FRONTEND_BASE_URL || "http://localhost:5173").replace(/\/$/, "");
+
+        const session = await stripe.checkout.sessions.create({
+            mode: "payment",
+            payment_method_types: ["card"],
+            line_items: [
+                {
+                    price_data: {
+                        currency: "vnd",
+                        product_data: {
+                            name: `Đặt sân #${booking.id}`,
+                            description: `Ngày ${booking.booking_date} | ${String(booking.start_time).slice(0, 5)} - ${String(
+                                booking.end_time
+                            ).slice(0, 5)}`,
+                        },
+                        unit_amount: amount,
+                    },
+                    quantity: 1,
+                },
+            ],
+            success_url: `${FRONTEND_BASE_URL}/customers/bookings?payment=success&booking_id=${booking.id}`,
+            cancel_url: `${FRONTEND_BASE_URL}/customers/bookings?payment=cancel&booking_id=${booking.id}`,
+            metadata: {
+                booking_id: String(booking.id),
+                customer_id: String(customer.id),
+            },
+        });
+
+        return res.status(200).json({
+            url: session.url,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Server error while creating Stripe checkout session", error: error.message });
+    }
+};
+

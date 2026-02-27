@@ -45,6 +45,7 @@ const OwnerDashboard = () => {
     setLoadingBookings(true);
     try {
       const res = await axios.get(`${API_BASE}/bookings/owner/${user.id}`);
+      console.log(res.data)
       setBookings(res.data.bookings || []);
     } catch (err) {
       console.error(err);
@@ -146,9 +147,10 @@ const OwnerDashboard = () => {
   };
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold text-slate-800">Sân của tôi</h1>
+    <div className="min-h-[calc(100vh-64px)] bg-white">
+      <div className="p-4 max-w-2xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-lg font-semibold text-slate-900">Sân của tôi</h1>
         <button
           type="button"
           onClick={() => setShowForm(true)}
@@ -157,9 +159,9 @@ const OwnerDashboard = () => {
           <Plus className="w-4 h-4" />
           Thêm sân
         </button>
-      </div>
+        </div>
 
-      {loading ? (
+        {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
         </div>
@@ -254,9 +256,9 @@ const OwnerDashboard = () => {
             )
           })}
         </ul>
-      )}
+        )}
 
-      <div className="mt-8">
+        <div className="mt-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-slate-800">Yêu cầu đặt sân</h2>
           {loadingBookings && <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />}
@@ -295,6 +297,7 @@ const OwnerDashboard = () => {
                 </div>
 
                 {booking.note && <p className="mt-2 text-sm text-slate-500">Ghi chú: {booking.note}</p>}
+                {booking.payment_status && <p className="mt-2 text-sm text-slate-600">Thanh toán: {booking.payment_status === "paid" ? "Đã thanh toán" : "Chưa thanh toán"}</p>}
 
                 {booking.status === "pending" && (
                   <div className="mt-3 flex gap-2 justify-end">
@@ -322,10 +325,10 @@ const OwnerDashboard = () => {
             ))}
           </div>
         )}
-      </div>
+        </div>
 
       {/* Modal xác nhận xóa sân */}
-      {fieldToDelete && (
+        {fieldToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-sm w-full p-5 space-y-3">
             <h2 className="text-sm font-semibold text-slate-800">Xóa sân?</h2>
@@ -364,9 +367,9 @@ const OwnerDashboard = () => {
             </div>
           </div>
         </div>
-      )}
+        )}
 
-      {showForm && (
+        {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 overflow-y-auto">
           <div className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-lg w-full my-8 max-h-[90vh] overflow-y-auto">
             <div className="px-5 py-4 border-b border-slate-200 sticky top-0 bg-white">
@@ -477,7 +480,8 @@ const OwnerDashboard = () => {
             </form>
           </div>
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

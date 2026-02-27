@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { MapPin, Clock, Star, ChevronLeft, Edit2, Trash2 } from "lucide-react";
@@ -348,36 +348,41 @@ const FieldDetail = () => {
 
   if (loading) {
     return (
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <p className="text-sm text-slate-500">Đang tải...</p>
-      </main>
+      <div className="min-h-[calc(100vh-64px)] bg-white">
+        <main className="max-w-4xl mx-auto px-4 py-8">
+          <p className="text-sm text-slate-500">Đang tải...</p>
+        </main>
+      </div>
     );
   }
 
   if (!data || !data.field) {
     return (
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1 text-sm text-slate-600 mb-4"
-        >
-          <ChevronLeft className="w-4 h-4" /> Quay lại
-        </button>
-        <p className="text-sm text-red-500">Không tìm thấy sân.</p>
-      </main>
+      <div className="min-h-[calc(100vh-64px)] bg-white">
+        <main className="max-w-4xl mx-auto px-4 py-8">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1 text-sm text-slate-600 mb-4"
+          >
+            <ChevronLeft className="w-4 h-4" /> Quay lại
+          </button>
+          <p className="text-sm text-red-500">Không tìm thấy sân.</p>
+        </main>
+      </div>
     );
   }
 
   const { field, images = [], reviews = [], time_slots = [] } = data;
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-      <button
-        onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1 text-sm text-slate-600"
-      >
-        <ChevronLeft className="w-4 h-4" /> Quay lại
-      </button>
+    <div className="min-h-[calc(100vh-64px)] bg-white">
+      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1 text-sm text-slate-600"
+        >
+          <ChevronLeft className="w-4 h-4" /> Quay lại
+        </button>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         {/* Ảnh sân */}
@@ -691,7 +696,7 @@ const FieldDetail = () => {
         </div>
       </div>
 
-      {/* Booking modal */}
+        {/* Booking modal */}
       {showBooking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-lg w-full overflow-hidden">
@@ -811,7 +816,7 @@ const FieldDetail = () => {
         </div>
       )}
 
-      {/* Chat modal */}
+        {/* Chat modal */}
       {showChat && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-lg w-full overflow-hidden">
@@ -882,7 +887,7 @@ const FieldDetail = () => {
         </div>
       )}
 
-      {/* Modal xác nhận xóa đánh giá */}
+        {/* Modal xác nhận xóa đánh giá */}
       {reviewToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-sm w-full p-5 space-y-3">
@@ -908,8 +913,9 @@ const FieldDetail = () => {
             </div>
           </div>
         </div>
-      )}
-    </main>
+        )}
+      </main>
+    </div>
   );
 };
 
