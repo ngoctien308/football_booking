@@ -10,25 +10,25 @@ const Header = () => {
       <div className="max-w-4xl mx-auto px-4">
         <div className="flex items-center justify-between h-14 gap-4">
           <Link to="/customers/home-page" className="text-slate-800 font-medium text-sm shrink-0">
-            Sân Bóng Pro
+            <svg width="100" height="80" viewBox="0 0 220 80" xmlns="http://www.w3.org/2000/svg">
+              {/* <!-- Background --> */}
+              <rect x="0" y="0" width="90" height="80" rx="15" fill="#0B7A3B" />
+
+              {/* <!-- Football field lines --> */}
+              <rect x="20" y="15" width="50" height="50" rx="5" fill="none" stroke="white" stroke-width="2" />
+              <line x1="45" y1="15" x2="45" y2="65" stroke="white" stroke-width="2" />
+              <circle cx="45" cy="40" r="8" fill="none" stroke="white" stroke-width="2" />
+
+              {/* <!-- Football --> */}
+              <circle cx="45" cy="40" r="4" fill="white" />
+            </svg>
           </Link>
-          <div className="flex-1 max-w-xs hidden sm:block">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Tìm sân, địa chỉ..."
-                className="w-full pl-8 pr-3 py-2 bg-slate-100 border-0 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
-            </div>
-          </div>
           <div className="flex items-center gap-3 shrink-0">
             <SignedIn>
               <NavLink
                 to="/customers/bookings"
                 className={({ isActive }) =>
-                  `hidden sm:inline text-xs font-medium px-2 py-1 rounded-lg ${
-                    isActive ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:text-emerald-600"
+                  `hidden sm:inline text-xs font-medium px-2 py-1 rounded-lg ${isActive ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:text-emerald-600"
                   }`
                 }
               >

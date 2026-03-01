@@ -2,14 +2,14 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import CustomerLayout from '../layouts/CustomerLayout';
 import OwnerLayout from '../layouts/OwnerLayout';
 import AuthLayout from '../layouts/AuthLayout';
-import ChooseRole from '../pages/normal/ChooseRole';
-import AfterSignUp from '../pages/normal/AfterSignUp';
-import HomePage from '../pages/normal/customers/HomePage';
-import FieldDetail from '../pages/normal/customers/FieldDetail';
-import CustomerBookings from '../pages/normal/customers/CustomerBookings';
-import OwnerDashboard from '../pages/normal/owners/OwnerDashboard';
-import OwnerMessages from '../pages/normal/owners/OwnerMessages';
-import OwnerFieldDetail from '../pages/normal/owners/OwnerFieldDetail';
+import ChooseRole from '../pages/ChooseRole';
+import AfterSignUp from '../pages/AfterSignUp';
+import HomePage from '../pages/customers/HomePage';
+import FieldDetail from '../pages/customers/FieldDetail';
+import CustomerBookings from '../pages/customers/CustomerBookings';
+import OwnerDashboard from '../pages/owners/OwnerDashboard';
+import OwnerMessages from '../pages/owners/OwnerMessages';
+import OwnerFieldDetail from '../pages/owners/OwnerFieldDetail';
 
 const AppRouter = () => {
   return (
