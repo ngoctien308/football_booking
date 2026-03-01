@@ -56,7 +56,16 @@ const calculateRemainingSlots = (fieldId, bookingRows) => {
     const bookedStarts = new Set(
         (bookingRows || []).filter((row) => row.field_id === fieldId).map((row) => row.start_time)
     );
-    return Math.max(SLOT_COUNT_PER_DAY - bookedStarts.size, 0);
+    const pastCurrentTimeAndNotBoookedSlots = new Set(
+        getDefaultSlots().filter((slot) => {
+            const [h, m] = slot.start_time.split(":").map(Number);
+            const slotTime = new Date();
+            slotTime.setHours(h, m, 0, 0);
+            return slotTime < new Date() && !bookedStarts.has(slot.start_time);
+        }).map((slot) => slot.start_time)
+    );
+
+    return Math.max(SLOT_COUNT_PER_DAY - bookedStarts.size - pastCurrentTimeAndNotBoookedSlots.size, 0);
 };
 
 async function getOwnerFromClerk(clerkUserId) {
@@ -216,10 +225,11 @@ export const getFieldDetail = async (req, res) => {
 
         const timeSlots = getDefaultSlots();
         const reviewStats = calculateReviewStats(reviews);
+        const remainingSlotNumber = calculateRemainingSlots(fieldId, bookingsResult.data || []); 
 
         const formattedField = {
             ...field,
-            remaining_slots: Math.max(SLOT_COUNT_PER_DAY - new Set((bookingsResult.data || []).map((b) => b.start_time)).size, 0),
+            remaining_slots: remainingSlotNumber,
             average_rating: Number(reviewStats.average_rating) || 0,
             review_count: Number(reviewStats.review_count) || 0,
         };

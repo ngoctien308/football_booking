@@ -17,7 +17,7 @@ const getDefaultSlots = () => {
     const slots = [];
     let startHour = 6;
     let startMin = 0;
-    
+
     // 6:00 to 22:30 (last slot ends at 24:00 but we cap at 23:00 or similar)
     // 1.5h = 90 mins. 
     // Slots: 6:00-7:30, 7:30-9:00, 9:00-10:30, 10:30-12:00, 12:00-13:30, 13:30-15:00, 15:00-16:30, 16:30-18:00, 18:00-19:30, 19:30-21:00, 21:00-22:30
@@ -25,7 +25,7 @@ const getDefaultSlots = () => {
         const totalStartMin = startHour * 60 + startMin + (i * 90);
         const h1 = Math.floor(totalStartMin / 60);
         const m1 = totalStartMin % 60;
-        
+
         const totalEndMin = totalStartMin + 90;
         const h2 = Math.floor(totalEndMin / 60);
         const m2 = totalEndMin % 60;
@@ -34,11 +34,11 @@ const getDefaultSlots = () => {
 
         const startTime = `${String(h1).padStart(2, '0')}:${String(m1).padStart(2, '0')}:00`;
         const endTime = `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}:00`;
-        
+
         // Peak hours: 17h-19h. If slot overlaps with 17:00-19:00, it's peak.
         // Simplified: 16:30-18:00 and 18:00-19:30 are peak
         const isPeak = (h1 === 16 && m1 === 30) || (h1 === 18 && m1 === 0);
-        
+
         slots.push({
             id: i + 1, // Virtual ID for frontend
             start_time: startTime,
@@ -97,20 +97,27 @@ export const getFieldAvailability = async (req, res) => {
         const defaultSlots = getDefaultSlots();
 
         const { data: bookedRows, error: bookedError } = await db
-                    .from("bookings")
+            .from("bookings")
             .select("start_time")
-                    .eq("field_id", fieldId)
-                    .eq("booking_date", bookingDate)
+            .eq("field_id", fieldId)
+            .eq("booking_date", bookingDate)
             .in("status", ACTIVE_BOOKING_STATUSES);
 
         if (bookedError) throw bookedError;
 
         const bookedStartTimes = new Set((bookedRows || []).map((item) => item.start_time));
 
-        const slots = defaultSlots.map(slot => ({
-            ...slot,
-            is_available: !bookedStartTimes.has(slot.start_time)
-        }));
+        const slots = defaultSlots.map(slot => {
+            const isPastCurrentTime = new Date(`${bookingDate}T${slot.start_time}`) <= new Date();
+            const hasBeenBooked = bookedStartTimes.has(slot.start_time);
+            return ({
+                ...slot,
+                status: {                    
+                    is_available: !isPastCurrentTime && !hasBeenBooked,
+                    message: isPastCurrentTime ? "Đã qua giờ" : hasBeenBooked ? "Đã có người đặt" : "",
+                }
+            })
+        });
 
         return res.status(200).json({ booking_date: bookingDate, slots });
     } catch (error) {
@@ -251,7 +258,7 @@ export const getBookingsByCustomer = async (req, res) => {
         }
 
         const rows = bookings.map((booking) => ({
-                ...booking,
+            ...booking,
             field: fieldMap.get(booking.field_id) || null,
         }));
 

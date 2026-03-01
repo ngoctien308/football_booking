@@ -96,9 +96,9 @@ const CustomerBookings = () => {
             setBookings(reload.data?.bookings || []);
           }
 
-          toast.success("Thanh toán Stripe thành công.");
+          toast.success("Thanh toán thành công.");
         } else if (paymentStatus === "cancel") {
-          toast.error("Bạn đã hủy thanh toán Stripe.");
+          toast.error("Bạn đã hủy thanh toán.");
         }
       } catch (err) {
         console.error("Error finalizing Stripe payment:", err);
@@ -189,7 +189,7 @@ const CustomerBookings = () => {
                       onClick={() => handlePay(booking.id)}
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
                     >
-                      {payingId === booking.id ? "Đang chuyển tới Stripe..." : "Thanh toán Stripe"}
+                      {payingId === booking.id ? "Đang chuyển tới Stripe..." : "Thanh toán"}
                     </button>
                   )}
                 </div>

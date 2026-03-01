@@ -45,7 +45,6 @@ const OwnerDashboard = () => {
     setLoadingBookings(true);
     try {
       const res = await axios.get(`${API_BASE}/bookings/owner/${user.id}`);
-      console.log(res.data)
       setBookings(res.data.bookings || []);
     } catch (err) {
       console.error(err);

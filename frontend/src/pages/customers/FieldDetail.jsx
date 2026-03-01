@@ -145,7 +145,7 @@ const FieldDetail = () => {
   };
 
   const toggleSlot = (slot) => {
-    if (!slot?.is_available) return;
+    if (!slot?.status.is_available) return;
     const start = slot.start_time;
     setSelectedStartTimes((prev) => {
       const next = new Set(prev);
@@ -165,7 +165,7 @@ const FieldDetail = () => {
       return;
     }
 
-    const chosen = availability.filter((s) => selectedStartTimes.has(s.start_time) && s.is_available);
+    const chosen = availability.filter((s) => selectedStartTimes.has(s.start_time) && s.status.is_available);
     if (chosen.length === 0) {
       toast.error("Vui lòng chọn ít nhất 1 khung giờ còn trống.");
       return;
@@ -746,7 +746,7 @@ const FieldDetail = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                     {availability.map((slot) => {
                       const selected = selectedStartTimes.has(slot.start_time);
-                      const disabled = !slot.is_available;
+                      const disabled = !slot.status.is_available;
                       return (
                         <button
                           key={`${slot.start_time}-${slot.end_time}`}
@@ -770,8 +770,7 @@ const FieldDetail = () => {
                             </span>
                           </div>
                           <div className="text-xs mt-0.5">
-                            {slot.type === "peak" ? "Cao điểm (17h-19h)" : "Giờ thường"}
-                            {!slot.is_available ? " • Đã có người đặt" : ""}
+                            {slot.type === "peak" ? "Cao điểm (17h-19h)" : "Giờ thường"} {slot.status.message && `- ${slot.status.message}`}                          
                           </div>
                         </button>
                       );
