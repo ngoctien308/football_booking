@@ -296,7 +296,7 @@ const OwnerDashboard = () => {
                 </div>
 
                 {booking.note && <p className="mt-2 text-sm text-slate-500">Ghi chú: {booking.note}</p>}
-                {booking.payment_status && <p className="mt-2 text-sm text-slate-600">Thanh toán: {booking.payment_status === "paid" ? "Đã thanh toán" : "Chưa thanh toán"}</p>}
+                {booking.payment_status && <p className="mt-2 text-sm text-slate-600">Thanh toán: <span className="font-semibold">{booking.payment_status === "paid" ? "Đã thanh toán" : "Chưa thanh toán"}</span></p>}
 
                 {booking.status === "pending" && (
                   <div className="mt-3 flex gap-2 justify-end">
