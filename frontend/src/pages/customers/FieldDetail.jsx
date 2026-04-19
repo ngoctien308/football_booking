@@ -640,6 +640,20 @@ const FieldDetail = () => {
                       </p>
                     )}
 
+                    {!isEditing && review.owner_reply && (
+                      <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-100 p-2">
+                        <p className="text-xs font-medium text-emerald-800">Chủ sân phản hồi</p>
+                        <p className="text-xs sm:text-sm text-emerald-900 mt-0.5">
+                          {review.owner_reply}
+                        </p>
+                        {review.owner_reply_at && (
+                          <p className="text-[11px] text-emerald-700/80 mt-1">
+                            {new Date(review.owner_reply_at).toLocaleString("vi-VN")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {isEditing && (
                       <div className="mt-2 space-y-2">
                         <div className="flex items-center gap-1">
@@ -919,4 +933,3 @@ const FieldDetail = () => {
 };
 
 export default FieldDetail;
-

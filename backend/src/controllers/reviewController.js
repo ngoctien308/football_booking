@@ -22,10 +22,33 @@ async function getCustomerByClerkId(clerk_user_id) {
     return { id: user.id };
 }
 
+async function getOwnerByClerkId(clerk_user_id) {
+    const { data: user, error } = await db
+        .from("users")
+        .select("id, role")
+        .eq("clerk_user_id", clerk_user_id)
+        .maybeSingle();
+
+    if (error) throw error;
+    if (!user) return { error: "NOT_FOUND" };
+    if (user.role !== "owner") return { error: "NOT_OWNER" };
+
+    const { data: owner, error: ownerError } = await db
+        .from("owners")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (ownerError) throw ownerError;
+    if (!owner) return { error: "OWNER_PROFILE_NOT_FOUND" };
+
+    return { owner_id: owner.id };
+}
+
 async function getReviewStatsAndList(field_id) {
     const { data: reviewRows, error: reviewError } = await db
         .from("reviews")
-        .select("id, customer_id, rating, comment, created_at")
+        .select("id, customer_id, rating, comment, owner_reply, owner_reply_at, created_at")
         .eq("field_id", field_id)
         .order("created_at", { ascending: false });
 
@@ -261,5 +284,67 @@ export const deleteReview = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: "Server error while deleting review", error: error.message });
+    }
+};
+
+export const replyReview = async (req, res) => {
+    try {
+        const reviewId = Number(req.params.id);
+        const { clerk_user_id, owner_reply } = req.body || {};
+
+        if (!Number.isFinite(reviewId) || !clerk_user_id) {
+            return res.status(400).json({ message: "Missing review id or clerk_user_id" });
+        }
+
+        const ownerResult = await getOwnerByClerkId(clerk_user_id);
+        if (ownerResult.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (ownerResult.error === "NOT_OWNER") return res.status(403).json({ message: "Only owner accounts can reply reviews" });
+        if (ownerResult.error === "OWNER_PROFILE_NOT_FOUND") return res.status(403).json({ message: "Owner profile not found" });
+
+        const { data: review, error: reviewError } = await db
+            .from("reviews")
+            .select("id, field_id")
+            .eq("id", reviewId)
+            .maybeSingle();
+
+        if (reviewError) throw reviewError;
+        if (!review) return res.status(404).json({ message: "Review not found" });
+
+        const { data: field, error: fieldError } = await db
+            .from("fields")
+            .select("id, owner_id")
+            .eq("id", review.field_id)
+            .maybeSingle();
+
+        if (fieldError) throw fieldError;
+        if (!field) return res.status(404).json({ message: "Field not found" });
+        if (field.owner_id !== ownerResult.owner_id) {
+            return res.status(403).json({ message: "You do not have permission to reply this review" });
+        }
+
+        const cleanedReply =
+            typeof owner_reply === "string" && owner_reply.trim().length > 0 ? owner_reply.trim() : null;
+
+        const now = new Date().toISOString();
+
+        const { error: updateError } = await db
+            .from("reviews")
+            .update({
+                owner_reply: cleanedReply,
+                owner_reply_at: cleanedReply ? now : null,
+            })
+            .eq("id", reviewId);
+
+        if (updateError) throw updateError;
+
+        const stats = await getReviewStatsAndList(review.field_id);
+
+        return res.status(200).json({
+            message: "Reply review successful",
+            ...stats,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Server error while replying review", error: error.message });
     }
 };

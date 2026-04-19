@@ -16,6 +16,8 @@ const OwnerFieldDetail = () => {
   const [activeImage, setActiveImage] = useState(null);
   const [imageToDelete, setImageToDelete] = useState(null);
   const [deletingImage, setDeletingImage] = useState(false);
+  const [replyDrafts, setReplyDrafts] = useState({});
+  const [replyingReviewId, setReplyingReviewId] = useState(null);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -79,6 +81,37 @@ const OwnerFieldDetail = () => {
       toast.error(err.response?.data?.message || "Không thể xóa ảnh.");
     } finally {
       setDeletingImage(false);
+    }
+  };
+
+  const handleReplyReview = async (reviewId) => {
+    if (!user?.id) return;
+    try {
+      setReplyingReviewId(reviewId);
+      const owner_reply = (replyDrafts[reviewId] ?? "").trim();
+      const res = await axios.put(`${API_BASE}/reviews/${reviewId}/reply`, {
+        clerk_user_id: user.id,
+        owner_reply,
+      });
+
+      setData((prev) => ({
+        ...prev,
+        reviews: res.data?.reviews || prev?.reviews || [],
+        field: prev?.field
+          ? {
+              ...prev.field,
+              average_rating: res.data?.average_rating ?? prev.field.average_rating,
+              review_count: res.data?.review_count ?? prev.field.review_count,
+            }
+          : prev?.field,
+      }));
+
+      toast.success("ÄÃ£ gá»­i pháº£n há»“i.");
+    } catch (err) {
+      console.error("Error replying review:", err);
+      toast.error(err.response?.data?.message || "KhÃ´ng thá»ƒ pháº£n há»“i Ä‘Ã¡nh giÃ¡.");
+    } finally {
+      setReplyingReviewId(null);
     }
   };
 
@@ -273,6 +306,45 @@ const OwnerFieldDetail = () => {
                         {review.comment}
                       </p>
                     )}
+
+                    {review.owner_reply && (
+                      <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-100 p-2">
+                        <p className="text-xs font-medium text-emerald-800">Chủ sân phản hồi</p>
+                        <p className="text-xs sm:text-sm text-emerald-900 mt-0.5">
+                          {review.owner_reply}
+                        </p>
+                        {review.owner_reply_at && (
+                          <p className="text-[11px] text-emerald-700/80 mt-1">
+                            {new Date(review.owner_reply_at).toLocaleString("vi-VN")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mt-2">
+                      <textarea
+                        rows={2}
+                        value={replyDrafts[review.id] ?? review.owner_reply ?? ""}
+                        onChange={(e) =>
+                          setReplyDrafts((prev) => ({
+                            ...prev,
+                            [review.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Phản hồi"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          disabled={replyingReviewId === review.id}
+                          onClick={() => handleReplyReview(review.id)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          {replyingReviewId === review.id ? "Đang gửi..." : "Trả lời"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

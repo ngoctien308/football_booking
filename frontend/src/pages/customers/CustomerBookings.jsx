@@ -28,25 +28,36 @@ const CustomerBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState(null);
+  const [filterBookingDate, setFilterBookingDate] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
+  const [showAllBookings, setShowAllBookings] = useState(false);
 
+  const fetchBookings = async (filters = {}) => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE}/bookings/customer/${user.id}`, { params: filters });
+      setBookings(res.data?.bookings || []);
+    } catch (err) {
+      console.error("Error loading customer bookings:", err);
+      toast.error(err.response?.data?.message || "Có lỗi khi tải lịch đặt sân.");
+      setBookings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
-    const fetchBookings = async () => {
-      if (!user?.id) return;
-      setLoading(true);
-      try {
-        const res = await axios.get(`${API_BASE}/bookings/customer/${user.id}`);
-        setBookings(res.data?.bookings || []);
-      } catch (err) {
-        console.error("Error loading customer bookings:", err);
-        toast.error(err.response?.data?.message || "Có lỗi khi tải lịch đặt sân.");
-        setBookings([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!user?.id) return;
+    setShowAllBookings(false);
+    fetchBookings({
+      ...(filterBookingDate ? { booking_date: filterBookingDate } : {}),
+      ...(filterStatus ? { status: filterStatus } : {}),
+      ...(filterPaymentStatus ? { payment_status: filterPaymentStatus } : {}),
+    });
+  }, [user?.id, filterBookingDate, filterStatus, filterPaymentStatus]);
 
-    fetchBookings();
-  }, [user?.id]);
+  const visibleBookings = showAllBookings ? bookings : bookings.slice(0, 5);
 
   const handlePay = async (bookingId) => {
     if (!user?.id) return;
@@ -92,8 +103,11 @@ const CustomerBookings = () => {
               prev.map((b) => (b.id === Number(bookingId) ? { ...b, ...updated } : b))
             );
           } else {
-            const reload = await axios.get(`${API_BASE}/bookings/customer/${user.id}`);
-            setBookings(reload.data?.bookings || []);
+            await fetchBookings({
+              ...(filterBookingDate ? { booking_date: filterBookingDate } : {}),
+              ...(filterStatus ? { status: filterStatus } : {}),
+              ...(filterPaymentStatus ? { payment_status: filterPaymentStatus } : {}),
+            });
           }
 
           toast.success("Thanh toán thành công.");
@@ -120,6 +134,58 @@ const CustomerBookings = () => {
             <p className="text-slate-500 text-sm mt-0.5">Xem các slot đã đặt theo thời gian.</p>
           </div>
         </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <input
+              type="date"
+              value={filterBookingDate}
+              onChange={(e) => setFilterBookingDate(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="pending">Đang chờ</option>
+              <option value="approved">Đã xác nhận</option>
+              <option value="rejected">Bị từ chối</option>
+            </select>
+            <select
+              value={filterPaymentStatus}
+              onChange={(e) => setFilterPaymentStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+            >
+              <option value="">Trạng thái thanh toán</option>
+              <option value="paid">Đã thanh toán</option>
+              <option value="unpaid">Chưa thanh toán</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterBookingDate("");
+                setFilterStatus("");
+                setFilterPaymentStatus("");
+              }}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Xóa bộ lọc
+            </button>
+          </div>
+        </div>
+
+        {!loading && bookings.length > 5 && (
+          <div className="flex items-center justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => setShowAllBookings((v) => !v)}
+              className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+            >
+              {showAllBookings ? "Thu gon" : "Xem tat ca"}
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
@@ -131,7 +197,7 @@ const CustomerBookings = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {bookings.map((booking) => (
+            {visibleBookings.map((booking) => (
               <div key={booking.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -203,4 +269,3 @@ const CustomerBookings = () => {
 };
 
 export default CustomerBookings;
-

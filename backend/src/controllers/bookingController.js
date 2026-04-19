@@ -85,6 +85,31 @@ async function getOwnerByClerkId(clerkUserId) {
     return owner;
 }
 
+const removeVietnameseDiacritics = (value) => {
+    if (typeof value !== "string") return "";
+    return value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D");
+};
+
+const normalizeTextForSearch = (value) => {
+    if (typeof value !== "string") return "";
+    return removeVietnameseDiacritics(value).trim().toLowerCase();
+};
+
+const normalizePhoneForSearch = (value) => {
+    if (value === null || value === undefined) return "";
+    return String(value).replace(/\D/g, "");
+};
+
+const extractContactNameFromNote = (note) => {
+    if (typeof note !== "string") return "";
+    const firstPart = note.split("|")[0]?.trim();
+    return firstPart || "";
+};
+
 export const getFieldAvailability = async (req, res) => {
     try {
         const fieldId = Number(req.params.field_id);
@@ -222,10 +247,25 @@ export const getBookingsByCustomer = async (req, res) => {
     try {
         const { clerk_user_id } = req.params;
         const fieldId = Number(req.query.field_id);
+        const bookingDate = req.query.booking_date ? toDateString(req.query.booking_date) : null;
+        const status = typeof req.query.status === "string" ? req.query.status.trim() : "";
+        const paymentStatus = typeof req.query.payment_status === "string" ? req.query.payment_status.trim() : "";
 
         const customer = await getCustomerByClerkId(clerk_user_id);
         if (customer.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
         if (customer.error === "NOT_CUSTOMER") return res.status(403).json({ message: "Only customers can access bookings" });
+
+        if (req.query.booking_date && !bookingDate) {
+            return res.status(400).json({ message: "Invalid booking_date" });
+        }
+
+        if (status && !["pending", "approved", "rejected", "cancelled"].includes(status)) {
+            return res.status(400).json({ message: "Invalid status" });
+        }
+
+        if (paymentStatus && !["paid", "unpaid"].includes(paymentStatus)) {
+            return res.status(400).json({ message: "Invalid payment_status" });
+        }
 
         let query = db
             .from("bookings")
@@ -235,6 +275,18 @@ export const getBookingsByCustomer = async (req, res) => {
 
         if (Number.isFinite(fieldId)) {
             query = query.eq("field_id", fieldId);
+        }
+
+        if (bookingDate) {
+            query = query.eq("booking_date", bookingDate);
+        }
+
+        if (status) {
+            query = query.eq("status", status);
+        }
+
+        if (paymentStatus) {
+            query = query.eq("payment_status", paymentStatus);
         }
 
         const { data: bookings, error: bookingError } = await query;
@@ -272,6 +324,19 @@ export const getBookingsByCustomer = async (req, res) => {
 export const getBookingsByOwner = async (req, res) => {
     try {
         const { clerk_user_id } = req.params;
+        const searchNameRaw = req.query.name ?? req.query.q ?? "";
+        const searchPhoneRaw = req.query.phone ?? req.query.q ?? "";
+        const paymentStatus = typeof req.query.payment_status === "string" ? req.query.payment_status.trim() : "";
+        const searchName = normalizeTextForSearch(searchNameRaw);
+        const searchPhone = normalizePhoneForSearch(searchPhoneRaw);
+        const hasNameFilter = searchName.length > 0;
+        const hasPhoneFilter = searchPhone.length > 0;
+        const hasPaymentFilter = paymentStatus.length > 0;
+
+        if (paymentStatus && !["paid", "unpaid"].includes(paymentStatus)) {
+            return res.status(400).json({ message: "Invalid payment_status" });
+        }
+
         const owner = await getOwnerByClerkId(clerk_user_id);
 
         if (owner.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
@@ -307,11 +372,28 @@ export const getBookingsByOwner = async (req, res) => {
         const fieldMap = new Map((fields || []).map((field) => [field.id, field]));
         const userMap = new Map((users || []).map((u) => [u.id, u]));
 
-        const rows = (bookings || []).map((booking) => ({
+        let rows = (bookings || []).map((booking) => {
+            const contactName = extractContactNameFromNote(booking.note);
+            return ({
             ...booking,
             field: fieldMap.get(booking.field_id) || null,
             customer: userMap.get(booking.customer_id) || null,
-        }));
+            contact_name: contactName || null,
+        });
+        });
+
+        if (hasNameFilter || hasPhoneFilter || hasPaymentFilter) {
+            rows = rows.filter((booking) => {
+                const customerName = normalizeTextForSearch(booking.customer?.name);
+                const contactName = normalizeTextForSearch(booking.contact_name);
+                const phone = normalizePhoneForSearch(booking.contact_phone);
+
+                const okName = !hasNameFilter || customerName.includes(searchName) || contactName.includes(searchName);
+                const okPhone = !hasPhoneFilter || phone.includes(searchPhone);
+                const okPayment = !hasPaymentFilter || booking.payment_status === paymentStatus;
+                return okName && okPhone && okPayment;
+            });
+        }
 
         return res.status(200).json({ bookings: rows });
     } catch (error) {
@@ -508,4 +590,3 @@ export const createStripeCheckoutSession = async (req, res) => {
         return res.status(500).json({ message: "Server error while creating Stripe checkout session", error: error.message });
     }
 };
-

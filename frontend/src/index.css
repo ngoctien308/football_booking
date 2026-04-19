@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
 * {
-    font-family: 'Poppins', sans-serif;
-    /* font-family: 'Inter', sans-serif; */
+    font-family: 'Inter', 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
 }

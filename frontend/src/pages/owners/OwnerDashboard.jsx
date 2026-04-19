@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/clerk-react";
 import axios from "axios";
-import { Plus, Loader2, Building2, ImagePlus, Clock, Trash2, Check, X } from "lucide-react";
+import { Plus, Loader2, Building2, ImagePlus, Clock, Trash2, Check, X, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -25,6 +25,10 @@ const OwnerDashboard = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [updatingBookingId, setUpdatingBookingId] = useState(null);
   const [fieldToDelete, setFieldToDelete] = useState(null);
+  const [bookingSearchName, setBookingSearchName] = useState("");
+  const [bookingSearchPhone, setBookingSearchPhone] = useState("");
+  const [bookingPaymentStatus, setBookingPaymentStatus] = useState("");
+  const [showAllBookings, setShowAllBookings] = useState(false);
 
   const fetchFields = async () => {
     if (!user?.id) return;
@@ -40,11 +44,11 @@ const OwnerDashboard = () => {
     }
   };
 
-  const fetchOwnerBookings = async () => {
+  const fetchOwnerBookings = async (filters = {}) => {
     if (!user?.id) return;
     setLoadingBookings(true);
     try {
-      const res = await axios.get(`${API_BASE}/bookings/owner/${user.id}`);
+      const res = await axios.get(`${API_BASE}/bookings/owner/${user.id}`, { params: filters });
       setBookings(res.data.bookings || []);
     } catch (err) {
       console.error(err);
@@ -59,6 +63,24 @@ const OwnerDashboard = () => {
     fetchOwnerBookings();
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    setShowAllBookings(false);
+    const timeout = setTimeout(() => {
+      const name = bookingSearchName.trim();
+      const phone = bookingSearchPhone.trim();
+      const payment_status = bookingPaymentStatus.trim();
+      fetchOwnerBookings({
+        ...(name ? { name } : {}),
+        ...(phone ? { phone } : {}),
+        ...(payment_status ? { payment_status } : {}),
+      });
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [user?.id, bookingSearchName, bookingSearchPhone, bookingPaymentStatus]);
+
+  const visibleBookings = showAllBookings ? bookings : bookings.slice(0, 5);
+
   const handleUpdateBookingStatus = async (bookingId, status) => {
     if (!user?.id) return;
     try {
@@ -67,7 +89,14 @@ const OwnerDashboard = () => {
         clerk_user_id: user.id,
         status,
       });
-      await fetchOwnerBookings();
+      const name = bookingSearchName.trim();
+      const phone = bookingSearchPhone.trim();
+      const payment_status = bookingPaymentStatus.trim();
+      await fetchOwnerBookings({
+        ...(name ? { name } : {}),
+        ...(phone ? { phone } : {}),
+        ...(payment_status ? { payment_status } : {}),
+      });
       toast.success(status === "approved" ? "Đã xác nhận đặt sân." : "Đã từ chối đặt sân.");
     } catch (err) {
       console.error(err);
@@ -146,7 +175,7 @@ const OwnerDashboard = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-white">
+    <div className="min-h-[calc(100vh-64px)] bg-white mb-20">
       <div className="p-4 max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-lg font-semibold text-slate-900">Sân của tôi</h1>
@@ -263,6 +292,57 @@ const OwnerDashboard = () => {
           {loadingBookings && <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />}
         </div>
 
+        <div className="bg-white rounded-xl border border-slate-200 p-3 mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={bookingSearchName}
+                onChange={(e) => setBookingSearchName(e.target.value)}
+                placeholder="Tìm theo tên khách..."
+                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              />
+            </div>
+            <input
+              value={bookingSearchPhone}
+              onChange={(e) => setBookingSearchPhone(e.target.value)}
+              placeholder="Tìm theo SĐT..."
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+            <select
+              value={bookingPaymentStatus}
+              onChange={(e) => setBookingPaymentStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+            >
+              <option value="">Trạng thái thanh toán</option>
+              <option value="paid">Đã thanh toán</option>
+              <option value="unpaid">Chưa thanh toán</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setBookingSearchName("");
+                setBookingSearchPhone("");
+                setBookingPaymentStatus("");
+              }}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Xóa bộ lọc
+            </button>
+          </div>
+        </div>
+
+        {!loadingBookings && bookings.length > 5 && (
+          <div className="flex items-center justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => setShowAllBookings((v) => !v)}
+              className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+            >
+              {showAllBookings ? "Thu gọn" : "Xem đầy đủ"}
+            </button>
+          </div>
+        )}
         {loadingBookings ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500">
             Đang tải danh sách đặt sân...
@@ -273,7 +353,7 @@ const OwnerDashboard = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {bookings.map((booking) => (
+            {visibleBookings.map((booking) => (
               <div key={booking.id} className="bg-white border border-slate-200 rounded-xl p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-slate-800">
@@ -286,7 +366,7 @@ const OwnerDashboard = () => {
 
                 <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-600">
                   <p>
-                    Khách: {booking.customer?.name || "Khách hàng"} ({booking.customer?.email || "Không có email"})
+                    Khách: {booking.customer?.name || booking.contact_name || "Khách hàng"} ({booking.customer?.email || "Không có email"})
                   </p>
                   <p>
                     Khung giờ: {booking.start_time?.slice(0, 5)} - {booking.end_time?.slice(0, 5)}

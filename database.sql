@@ -165,6 +165,8 @@ CREATE TABLE `reviews` (
   `field_id` int(11) NOT NULL,
   `rating` int(11) DEFAULT NULL CHECK (`rating` between 1 and 5),
   `comment` text DEFAULT NULL,
+  `owner_reply` text DEFAULT NULL,
+  `owner_reply_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `fk_review_field` (`field_id`),

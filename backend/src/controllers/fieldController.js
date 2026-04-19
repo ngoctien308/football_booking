@@ -186,7 +186,7 @@ export const getFieldDetail = async (req, res) => {
                 .order("created_at", { ascending: false }),
             db
                 .from("reviews")
-                .select("id, customer_id, rating, comment, created_at")
+                .select("id, customer_id, rating, comment, owner_reply, owner_reply_at, created_at")
                 .eq("field_id", fieldId)
                 .order("created_at", { ascending: false }),
             db
