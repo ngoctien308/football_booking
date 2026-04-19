@@ -173,4 +173,23 @@ CREATE TABLE `reviews` (
   CONSTRAINT `fk_review_field` FOREIGN KEY (`field_id`) REFERENCES `fields` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Cáº¥u trÃºc báº£ng cho báº£ng `review_replies`
+--
+
+CREATE TABLE `review_replies` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `review_id` int(11) NOT NULL,
+  `owner_id` int(11) NOT NULL,
+  `reply` text NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_review_replies_review_id` (`review_id`),
+  KEY `idx_review_replies_owner_id` (`owner_id`),
+  CONSTRAINT `fk_review_reply_review` FOREIGN KEY (`review_id`) REFERENCES `reviews` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_review_reply_owner` FOREIGN KEY (`owner_id`) REFERENCES `owners` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 COMMIT;

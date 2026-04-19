@@ -107,6 +107,7 @@ const OwnerFieldDetail = () => {
       }));
 
       toast.success("ÄÃ£ gá»­i pháº£n há»“i.");
+      setReplyDrafts((prev) => ({ ...prev, [reviewId]: "" }));
     } catch (err) {
       console.error("Error replying review:", err);
       toast.error(err.response?.data?.message || "KhÃ´ng thá»ƒ pháº£n há»“i Ä‘Ã¡nh giÃ¡.");
@@ -307,24 +308,32 @@ const OwnerFieldDetail = () => {
                       </p>
                     )}
 
-                    {review.owner_reply && (
-                      <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-100 p-2">
+                    {(Array.isArray(review.owner_replies) && review.owner_replies.length > 0
+                      ? review.owner_replies
+                      : review.owner_reply
+                        ? [{ id: "legacy", reply: review.owner_reply, created_at: review.owner_reply_at }]
+                        : []
+                    ).map((r) => (
+                      <div
+                        key={r.id}
+                        className="mt-2 rounded-lg bg-emerald-50 border border-emerald-100 p-2"
+                      >
                         <p className="text-xs font-medium text-emerald-800">Chủ sân phản hồi</p>
                         <p className="text-xs sm:text-sm text-emerald-900 mt-0.5">
-                          {review.owner_reply}
+                          {r.reply}
                         </p>
-                        {review.owner_reply_at && (
+                        {r.created_at && (
                           <p className="text-[11px] text-emerald-700/80 mt-1">
-                            {new Date(review.owner_reply_at).toLocaleString("vi-VN")}
+                            {new Date(r.created_at).toLocaleString("vi-VN")}
                           </p>
                         )}
                       </div>
-                    )}
+                    ))}
 
                     <div className="mt-2">
                       <textarea
                         rows={2}
-                        value={replyDrafts[review.id] ?? review.owner_reply ?? ""}
+                        value={replyDrafts[review.id] ?? ""}
                         onChange={(e) =>
                           setReplyDrafts((prev) => ({
                             ...prev,

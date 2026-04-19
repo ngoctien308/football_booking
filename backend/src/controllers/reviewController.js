@@ -56,6 +56,31 @@ async function getReviewStatsAndList(field_id) {
         throw reviewError;
     }
 
+    const reviewIds = (reviewRows || []).map((item) => item.id);
+    let repliesByReviewId = new Map();
+
+    if (reviewIds.length > 0) {
+        const { data: replyRows, error: replyError } = await db
+            .from("review_replies")
+            .select("id, review_id, reply, created_at")
+            .in("review_id", reviewIds)
+            .order("created_at", { ascending: true });
+
+        if (replyError) {
+            throw replyError;
+        }
+
+        repliesByReviewId = new Map();
+        for (const row of replyRows || []) {
+            if (!repliesByReviewId.has(row.review_id)) repliesByReviewId.set(row.review_id, []);
+            repliesByReviewId.get(row.review_id).push({
+                id: row.id,
+                reply: row.reply,
+                created_at: row.created_at,
+            });
+        }
+    }
+
     const customerIds = [...new Set((reviewRows || []).map((item) => item.customer_id))];
     let userMap = new Map();
 
@@ -74,10 +99,15 @@ async function getReviewStatsAndList(field_id) {
 
     const reviews = (reviewRows || []).map((review) => {
         const user = userMap.get(review.customer_id) || null;
+        const ownerReplies = repliesByReviewId.get(review.id) || [];
+        const latestReply = ownerReplies.length > 0 ? ownerReplies[ownerReplies.length - 1] : null;
         return {
             ...review,
             customer_name: user?.name || null,
             clerk_user_id: user?.clerk_user_id || null,
+            owner_replies: ownerReplies,
+            owner_reply: latestReply?.reply ?? review.owner_reply ?? null,
+            owner_reply_at: latestReply?.created_at ?? review.owner_reply_at ?? null,
         };
     });
 
@@ -144,9 +174,6 @@ export const createReview = async (req, res) => {
         ]);
 
         if (insertError) {
-            if (insertError.code === "23505") {
-                return res.status(409).json({ message: "You already reviewed this field" });
-            }
             throw insertError;
         }
 
@@ -325,17 +352,30 @@ export const replyReview = async (req, res) => {
         const cleanedReply =
             typeof owner_reply === "string" && owner_reply.trim().length > 0 ? owner_reply.trim() : null;
 
-        const now = new Date().toISOString();
+        if (!cleanedReply) {
+            return res.status(400).json({ message: "Missing owner_reply" });
+        }
 
-        const { error: updateError } = await db
+        const { error: insertReplyError } = await db.from("review_replies").insert([
+            {
+                review_id: reviewId,
+                owner_id: ownerResult.owner_id,
+                reply: cleanedReply,
+            },
+        ]);
+
+        if (insertReplyError) throw insertReplyError;
+
+        const now = new Date().toISOString();
+        const { error: updateReviewError } = await db
             .from("reviews")
             .update({
                 owner_reply: cleanedReply,
-                owner_reply_at: cleanedReply ? now : null,
+                owner_reply_at: now,
             })
             .eq("id", reviewId);
 
-        if (updateError) throw updateError;
+        if (updateReviewError) throw updateReviewError;
 
         const stats = await getReviewStatsAndList(review.field_id);
 

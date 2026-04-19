@@ -201,7 +201,31 @@ export const getFieldDetail = async (req, res) => {
         if (reviewsResult.error) throw reviewsResult.error;
         if (bookingsResult.error) throw bookingsResult.error;
 
-        const customerIds = [...new Set((reviewsResult.data || []).map((review) => review.customer_id))];
+        const reviewRows = reviewsResult.data || [];
+        const reviewIds = reviewRows.map((review) => review.id);
+        let repliesByReviewId = new Map();
+
+        if (reviewIds.length > 0) {
+            const { data: replyRows, error: replyError } = await db
+                .from("review_replies")
+                .select("id, review_id, reply, created_at")
+                .in("review_id", reviewIds)
+                .order("created_at", { ascending: true });
+
+            if (replyError) throw replyError;
+
+            repliesByReviewId = new Map();
+            for (const row of replyRows || []) {
+                if (!repliesByReviewId.has(row.review_id)) repliesByReviewId.set(row.review_id, []);
+                repliesByReviewId.get(row.review_id).push({
+                    id: row.id,
+                    reply: row.reply,
+                    created_at: row.created_at,
+                });
+            }
+        }
+
+        const customerIds = [...new Set(reviewRows.map((review) => review.customer_id))];
         let userMap = new Map();
 
         if (customerIds.length > 0) {
@@ -214,12 +238,17 @@ export const getFieldDetail = async (req, res) => {
             userMap = new Map((users || []).map((user) => [user.id, user]));
         }
 
-        const reviews = (reviewsResult.data || []).map((review) => {
+        const reviews = reviewRows.map((review) => {
             const user = userMap.get(review.customer_id) || null;
+            const ownerReplies = repliesByReviewId.get(review.id) || [];
+            const latestReply = ownerReplies.length > 0 ? ownerReplies[ownerReplies.length - 1] : null;
             return {
                 ...review,
                 customer_name: user?.name || null,
                 clerk_user_id: user?.clerk_user_id || null,
+                owner_replies: ownerReplies,
+                owner_reply: latestReply?.reply ?? review.owner_reply ?? null,
+                owner_reply_at: latestReply?.created_at ?? review.owner_reply_at ?? null,
             };
         });
 
