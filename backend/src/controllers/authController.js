@@ -26,6 +26,8 @@ export const createUser = async (req, res) => {
             return res.status(200).json({ message: "Account already exists.", currentUser: existing[0] });
         }
 
+        const owner_approved = role === "owner" ? false : true;
+
         const { data: inserted, error: insertError } = await db
             .from("users")
             .insert([
@@ -34,6 +36,7 @@ export const createUser = async (req, res) => {
                     name: name || null,
                     email: email || null,
                     role,
+                    owner_approved,
                 },
             ])
             .select("*")
@@ -66,6 +69,14 @@ export const getCurrentUser = async (req, res) => {
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
+        }
+
+        if (user.deleted_at) {
+            return res.status(403).json({ message: "Account has been deleted" });
+        }
+
+        if (user.is_locked) {
+            return res.status(403).json({ message: "Account is locked" });
         }
 
         return res.status(200).json({ currentUser: user });

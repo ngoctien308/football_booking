@@ -71,11 +71,14 @@ const calculateRemainingSlots = (fieldId, bookingRows) => {
 async function getOwnerFromClerk(clerkUserId) {
     const { data: user, error: userError } = await db
         .from("users")
-        .select("id, role")
+        .select("id, role, owner_approved, is_locked, deleted_at")
         .eq("clerk_user_id", clerkUserId)
         .maybeSingle();
     if (userError) throw userError;
     if (!user || user.role !== "owner") return null;
+    if (user.deleted_at) return null;
+    if (user.is_locked) return null;
+    if (user.owner_approved === false) return null;
 
     const { data: owner, error: ownerError } = await db
         .from("owners")
@@ -346,7 +349,7 @@ export const createField = async (req, res) => {
 
         const { data: user, error: userError } = await db
             .from("users")
-            .select("id, name")
+            .select("id, name, owner_approved, is_locked, deleted_at")
             .eq("clerk_user_id", clerk_user_id)
             .eq("role", "owner")
             .maybeSingle();
@@ -355,6 +358,9 @@ export const createField = async (req, res) => {
         if (!user) {
             return res.status(403).json({ message: "Only owner accounts can create fields." });
         }
+        if (user.deleted_at) return res.status(403).json({ message: "Account has been deleted" });
+        if (user.is_locked) return res.status(403).json({ message: "Account is locked" });
+        if (user.owner_approved === false) return res.status(403).json({ message: "Owner account is pending approval" });
 
         const ownerName = user.name || "Owner";
         const { data: ownerRow, error: ownerLookupError } = await db

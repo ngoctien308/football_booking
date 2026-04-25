@@ -70,6 +70,12 @@ const AuthLayout = () => {
             <p className="mt-4 text-center text-slate-500 text-xs">
               Đăng ký để chọn vai trò <span className="text-slate-400">Người đặt sân</span> hoặc <span className="text-slate-400">Chủ sân</span>.
             </p>
+            <p className="mt-2 text-center text-slate-400 text-xs">
+              Bạn là admin?{" "}
+              <Link to="/admin/login" className="text-indigo-600 font-medium hover:underline">
+                Đăng nhập admin
+              </Link>
+            </p>
           </SignedOut>
 
           <SignedIn>
@@ -98,11 +104,25 @@ const AuthLayout = () => {
                       </Link>
                     )}
                     {currentUser?.role === "owner" && (
+                      currentUser?.owner_approved === false ? (
+                        <div className="block w-full py-3 bg-slate-200 text-slate-700 text-sm font-medium rounded-lg text-center">
+                          Chủ sân (chờ duyệt)
+                        </div>
+                      ) : (
+                        <Link
+                          to="/owners"
+                          className="block w-full py-3 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 text-center"
+                        >
+                          Quản lý sân
+                        </Link>
+                      )
+                    )}
+                    {currentUser?.role === "admin" && (
                       <Link
-                        to="/owners"
-                        className="block w-full py-3 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 text-center"
+                        to="/admin/accounts"
+                        className="block w-full py-3 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 text-center"
                       >
-                        Quản lý sân
+                        Vào trang admin
                       </Link>
                     )}
                   </div>

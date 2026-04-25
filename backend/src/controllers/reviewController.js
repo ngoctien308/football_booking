@@ -3,7 +3,7 @@ import { db } from "../config/db.js";
 async function getCustomerByClerkId(clerk_user_id) {
     const { data: user, error } = await db
         .from("users")
-        .select("id, role")
+        .select("id, role, is_locked, deleted_at")
         .eq("clerk_user_id", clerk_user_id)
         .maybeSingle();
 
@@ -15,6 +15,9 @@ async function getCustomerByClerkId(clerk_user_id) {
         return { error: "NOT_FOUND" };
     }
 
+    if (user.deleted_at) return { error: "DELETED" };
+    if (user.is_locked) return { error: "LOCKED" };
+
     if (user.role !== "customer") {
         return { error: "NOT_CUSTOMER" };
     }
@@ -25,13 +28,16 @@ async function getCustomerByClerkId(clerk_user_id) {
 async function getOwnerByClerkId(clerk_user_id) {
     const { data: user, error } = await db
         .from("users")
-        .select("id, role")
+        .select("id, role, owner_approved, is_locked, deleted_at")
         .eq("clerk_user_id", clerk_user_id)
         .maybeSingle();
 
     if (error) throw error;
     if (!user) return { error: "NOT_FOUND" };
+    if (user.deleted_at) return { error: "DELETED" };
+    if (user.is_locked) return { error: "LOCKED" };
     if (user.role !== "owner") return { error: "NOT_OWNER" };
+    if (user.owner_approved === false) return { error: "OWNER_NOT_APPROVED" };
 
     const { data: owner, error: ownerError } = await db
         .from("owners")
@@ -143,6 +149,8 @@ export const createReview = async (req, res) => {
         if (customerResult.error === "NOT_FOUND") {
             return res.status(404).json({ message: "User not found" });
         }
+        if (customerResult.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customerResult.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (customerResult.error === "NOT_CUSTOMER") {
             return res.status(403).json({ message: "Only customer accounts can review fields" });
         }
@@ -209,6 +217,8 @@ export const updateReview = async (req, res) => {
         if (customerResult.error === "NOT_FOUND") {
             return res.status(404).json({ message: "User not found" });
         }
+        if (customerResult.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customerResult.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (customerResult.error === "NOT_CUSTOMER") {
             return res.status(403).json({ message: "Only customer accounts can edit reviews" });
         }
@@ -274,6 +284,8 @@ export const deleteReview = async (req, res) => {
         if (customerResult.error === "NOT_FOUND") {
             return res.status(404).json({ message: "User not found" });
         }
+        if (customerResult.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customerResult.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (customerResult.error === "NOT_CUSTOMER") {
             return res.status(403).json({ message: "Only customer accounts can delete reviews" });
         }
@@ -326,6 +338,9 @@ export const replyReview = async (req, res) => {
         const ownerResult = await getOwnerByClerkId(clerk_user_id);
         if (ownerResult.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
         if (ownerResult.error === "NOT_OWNER") return res.status(403).json({ message: "Only owner accounts can reply reviews" });
+        if (ownerResult.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (ownerResult.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
+        if (ownerResult.error === "OWNER_NOT_APPROVED") return res.status(403).json({ message: "Owner account is pending approval" });
         if (ownerResult.error === "OWNER_PROFILE_NOT_FOUND") return res.status(403).json({ message: "Owner profile not found" });
 
         const { data: review, error: reviewError } = await db

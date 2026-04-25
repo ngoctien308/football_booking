@@ -3,11 +3,14 @@ import { db } from "../config/db.js";
 async function getUserByClerkId(clerkUserId) {
     const { data, error } = await db
         .from("users")
-        .select("id, role, name, email")
+        .select("id, role, name, email, owner_approved, is_locked, deleted_at")
         .eq("clerk_user_id", clerkUserId)
         .maybeSingle();
     if (error) throw error;
     if (!data) return { error: "NOT_FOUND" };
+    if (data.deleted_at) return { error: "DELETED" };
+    if (data.is_locked) return { error: "LOCKED" };
+    if (data.role === "owner" && data.owner_approved === false) return { error: "OWNER_NOT_APPROVED" };
     return data;
 }
 
@@ -57,6 +60,11 @@ export const getOrCreateConversationByField = async (req, res) => {
 
         const user = await getUserByClerkId(clerk_user_id);
         if (user.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (user.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (user.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
+        if (user.error === "OWNER_NOT_APPROVED") return res.status(403).json({ message: "Owner account is pending approval" });
+        if (user.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (user.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (user.role !== "customer") return res.status(403).json({ message: "Only customers can start a conversation" });
 
         const ownerInfo = await getOwnerUserIdByFieldId(fieldId);
@@ -102,6 +110,8 @@ export const listConversationsForCustomer = async (req, res) => {
         const { clerk_user_id } = req.params;
         const user = await getUserByClerkId(clerk_user_id);
         if (user.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (user.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (user.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (user.role !== "customer") return res.status(403).json({ message: "Only customers can access this endpoint" });
 
         const { data: conversations, error } = await db
@@ -132,7 +142,10 @@ export const listConversationsForOwner = async (req, res) => {
         const { clerk_user_id } = req.params;
         const user = await getUserByClerkId(clerk_user_id);
         if (user.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (user.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (user.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (user.role !== "owner") return res.status(403).json({ message: "Only owners can access this endpoint" });
+        if (user.error === "OWNER_NOT_APPROVED") return res.status(403).json({ message: "Owner account is pending approval" });
 
         const { data: conversations, error } = await db
             .from("conversations")
@@ -183,6 +196,9 @@ export const listMessages = async (req, res) => {
 
         const user = await getUserByClerkId(clerkUserId);
         if (user.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (user.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (user.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
+        if (user.error === "OWNER_NOT_APPROVED") return res.status(403).json({ message: "Owner account is pending approval" });
 
         const conversation = await getConversationById(conversationId);
         if (!conversation) return res.status(404).json({ message: "Conversation not found" });
@@ -250,4 +266,3 @@ export const sendMessage = async (req, res) => {
         return res.status(500).json({ message: "Server error while sending message", error: error.message });
     }
 };
-

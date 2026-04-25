@@ -53,12 +53,14 @@ const getDefaultSlots = () => {
 async function getCustomerByClerkId(clerkUserId) {
     const { data, error } = await db
         .from("users")
-        .select("id, role, name")
+        .select("id, role, name, is_locked, deleted_at")
         .eq("clerk_user_id", clerkUserId)
         .maybeSingle();
 
     if (error) throw error;
     if (!data) return { error: "NOT_FOUND" };
+    if (data.deleted_at) return { error: "DELETED" };
+    if (data.is_locked) return { error: "LOCKED" };
     if (data.role !== "customer") return { error: "NOT_CUSTOMER" };
     return data;
 }
@@ -66,13 +68,16 @@ async function getCustomerByClerkId(clerkUserId) {
 async function getOwnerByClerkId(clerkUserId) {
     const { data: user, error: userError } = await db
         .from("users")
-        .select("id, role")
+        .select("id, role, owner_approved, is_locked, deleted_at")
         .eq("clerk_user_id", clerkUserId)
         .maybeSingle();
 
     if (userError) throw userError;
     if (!user) return { error: "NOT_FOUND" };
+    if (user.deleted_at) return { error: "DELETED" };
+    if (user.is_locked) return { error: "LOCKED" };
     if (user.role !== "owner") return { error: "NOT_OWNER" };
+    if (user.owner_approved === false) return { error: "OWNER_NOT_APPROVED" };
 
     const { data: owner, error: ownerError } = await db
         .from("owners")
@@ -181,6 +186,8 @@ export const createBooking = async (req, res) => {
 
         const customer = await getCustomerByClerkId(clerk_user_id);
         if (customer.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (customer.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customer.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (customer.error === "NOT_CUSTOMER") return res.status(403).json({ message: "Only customers can book" });
 
         const { data: field, error: fieldError } = await db.from("fields").select("id").eq("id", fieldId).maybeSingle();
@@ -253,6 +260,8 @@ export const getBookingsByCustomer = async (req, res) => {
 
         const customer = await getCustomerByClerkId(clerk_user_id);
         if (customer.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (customer.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customer.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (customer.error === "NOT_CUSTOMER") return res.status(403).json({ message: "Only customers can access bookings" });
 
         if (req.query.booking_date && !bookingDate) {
@@ -346,7 +355,10 @@ export const getBookingsByOwner = async (req, res) => {
         const owner = await getOwnerByClerkId(clerk_user_id);
 
         if (owner.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (owner.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (owner.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (owner.error === "NOT_OWNER") return res.status(403).json({ message: "Only owners can access this endpoint" });
+        if (owner.error === "OWNER_NOT_APPROVED") return res.status(403).json({ message: "Owner account is pending approval" });
         if (owner.error === "OWNER_PROFILE_NOT_FOUND") return res.status(200).json({ bookings: [] });
 
         const { data: fields, error: fieldsError } = await db
@@ -420,7 +432,10 @@ export const updateBookingStatus = async (req, res) => {
 
         const owner = await getOwnerByClerkId(clerk_user_id);
         if (owner.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (owner.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (owner.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (owner.error === "NOT_OWNER") return res.status(403).json({ message: "Only owners can update booking status" });
+        if (owner.error === "OWNER_NOT_APPROVED") return res.status(403).json({ message: "Owner account is pending approval" });
         if (owner.error === "OWNER_PROFILE_NOT_FOUND") return res.status(403).json({ message: "Owner profile not found" });
 
         const { data: booking, error: bookingError } = await db
@@ -469,7 +484,10 @@ export const getOwnerDashboardStats = async (req, res) => {
         const owner = await getOwnerByClerkId(clerk_user_id);
 
         if (owner.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (owner.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (owner.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (owner.error === "NOT_OWNER") return res.status(403).json({ message: "Only owners can access this endpoint" });
+        if (owner.error === "OWNER_NOT_APPROVED") return res.status(403).json({ message: "Owner account is pending approval" });
         if (owner.error === "OWNER_PROFILE_NOT_FOUND") return res.status(200).json({ stats: [], totals: { booking_count: 0, paid_count: 0, unpaid_count: 0, average_rating: 0, review_count: 0 } });
 
         const { data: fields, error: fieldsError } = await db
@@ -573,6 +591,8 @@ export const payBooking = async (req, res) => {
 
         const customer = await getCustomerByClerkId(clerk_user_id);
         if (customer.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (customer.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customer.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (customer.error === "NOT_CUSTOMER") return res.status(403).json({ message: "Only customers can pay for bookings" });
 
         const { data: booking, error: bookingError } = await db
@@ -634,6 +654,8 @@ export const createStripeCheckoutSession = async (req, res) => {
 
         const customer = await getCustomerByClerkId(clerk_user_id);
         if (customer.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (customer.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customer.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
         if (customer.error === "NOT_CUSTOMER") return res.status(403).json({ message: "Only customers can pay for bookings" });
 
         const { data: booking, error: bookingError } = await db
