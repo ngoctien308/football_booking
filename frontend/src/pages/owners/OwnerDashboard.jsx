@@ -28,6 +28,7 @@ const OwnerDashboard = () => {
   const [bookingSearchName, setBookingSearchName] = useState("");
   const [bookingSearchPhone, setBookingSearchPhone] = useState("");
   const [bookingPaymentStatus, setBookingPaymentStatus] = useState("");
+  const [bookingStatus, setBookingStatus] = useState("");
   const [showAllBookings, setShowAllBookings] = useState(false);
 
   const fetchFields = async () => {
@@ -70,14 +71,16 @@ const OwnerDashboard = () => {
       const name = bookingSearchName.trim();
       const phone = bookingSearchPhone.trim();
       const payment_status = bookingPaymentStatus.trim();
+      const status = bookingStatus.trim();
       fetchOwnerBookings({
         ...(name ? { name } : {}),
         ...(phone ? { phone } : {}),
         ...(payment_status ? { payment_status } : {}),
+        ...(status ? { status } : {}),
       });
     }, 300);
     return () => clearTimeout(timeout);
-  }, [user?.id, bookingSearchName, bookingSearchPhone, bookingPaymentStatus]);
+  }, [user?.id, bookingSearchName, bookingSearchPhone, bookingPaymentStatus, bookingStatus]);
 
   const visibleBookings = showAllBookings ? bookings : bookings.slice(0, 5);
 
@@ -92,10 +95,12 @@ const OwnerDashboard = () => {
       const name = bookingSearchName.trim();
       const phone = bookingSearchPhone.trim();
       const payment_status = bookingPaymentStatus.trim();
+      const statusFilter = bookingStatus.trim();
       await fetchOwnerBookings({
         ...(name ? { name } : {}),
         ...(phone ? { phone } : {}),
         ...(payment_status ? { payment_status } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
       });
       toast.success(status === "approved" ? "Đã xác nhận đặt sân." : "Đã từ chối đặt sân.");
     } catch (err) {
@@ -293,7 +298,7 @@ const OwnerDashboard = () => {
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-3 mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -310,6 +315,16 @@ const OwnerDashboard = () => {
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
             <select
+              value={bookingStatus}
+              onChange={(e) => setBookingStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+            >
+              <option value="">Trạng thái xác nhận</option>
+              <option value="approved">Đã xác nhận</option>
+              <option value="rejected">Đã từ chối</option>
+              <option value="pending">Chưa xác nhận</option>
+            </select>
+            <select
               value={bookingPaymentStatus}
               onChange={(e) => setBookingPaymentStatus(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
@@ -323,6 +338,7 @@ const OwnerDashboard = () => {
               onClick={() => {
                 setBookingSearchName("");
                 setBookingSearchPhone("");
+                setBookingStatus("");
                 setBookingPaymentStatus("");
               }}
               className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50"

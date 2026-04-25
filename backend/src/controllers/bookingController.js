@@ -327,14 +327,20 @@ export const getBookingsByOwner = async (req, res) => {
         const searchNameRaw = req.query.name ?? req.query.q ?? "";
         const searchPhoneRaw = req.query.phone ?? req.query.q ?? "";
         const paymentStatus = typeof req.query.payment_status === "string" ? req.query.payment_status.trim() : "";
+        const bookingStatus = typeof req.query.status === "string" ? req.query.status.trim() : "";
         const searchName = normalizeTextForSearch(searchNameRaw);
         const searchPhone = normalizePhoneForSearch(searchPhoneRaw);
         const hasNameFilter = searchName.length > 0;
         const hasPhoneFilter = searchPhone.length > 0;
         const hasPaymentFilter = paymentStatus.length > 0;
+        const hasStatusFilter = bookingStatus.length > 0;
 
         if (paymentStatus && !["paid", "unpaid"].includes(paymentStatus)) {
             return res.status(400).json({ message: "Invalid payment_status" });
+        }
+
+        if (bookingStatus && !["pending", "approved", "rejected", "cancelled"].includes(bookingStatus)) {
+            return res.status(400).json({ message: "Invalid status" });
         }
 
         const owner = await getOwnerByClerkId(clerk_user_id);
@@ -382,7 +388,7 @@ export const getBookingsByOwner = async (req, res) => {
         });
         });
 
-        if (hasNameFilter || hasPhoneFilter || hasPaymentFilter) {
+        if (hasNameFilter || hasPhoneFilter || hasPaymentFilter || hasStatusFilter) {
             rows = rows.filter((booking) => {
                 const customerName = normalizeTextForSearch(booking.customer?.name);
                 const contactName = normalizeTextForSearch(booking.contact_name);
@@ -391,7 +397,8 @@ export const getBookingsByOwner = async (req, res) => {
                 const okName = !hasNameFilter || customerName.includes(searchName) || contactName.includes(searchName);
                 const okPhone = !hasPhoneFilter || phone.includes(searchPhone);
                 const okPayment = !hasPaymentFilter || booking.payment_status === paymentStatus;
-                return okName && okPhone && okPayment;
+                const okStatus = !hasStatusFilter || booking.status === bookingStatus;
+                return okName && okPhone && okPayment && okStatus;
             });
         }
 
