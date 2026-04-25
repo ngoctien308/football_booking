@@ -462,6 +462,106 @@ export const updateBookingStatus = async (req, res) => {
     }
 };
 
+export const getOwnerDashboardStats = async (req, res) => {
+    try {
+        const { clerk_user_id } = req.params;
+
+        const owner = await getOwnerByClerkId(clerk_user_id);
+
+        if (owner.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (owner.error === "NOT_OWNER") return res.status(403).json({ message: "Only owners can access this endpoint" });
+        if (owner.error === "OWNER_PROFILE_NOT_FOUND") return res.status(200).json({ stats: [], totals: { booking_count: 0, paid_count: 0, unpaid_count: 0, average_rating: 0, review_count: 0 } });
+
+        const { data: fields, error: fieldsError } = await db
+            .from("fields")
+            .select("id, field_name")
+            .eq("owner_id", owner.id);
+        if (fieldsError) throw fieldsError;
+
+        const fieldIds = (fields || []).map((f) => f.id);
+        if (fieldIds.length === 0) {
+            return res.status(200).json({ stats: [], totals: { booking_count: 0, paid_count: 0, unpaid_count: 0, average_rating: 0, review_count: 0 } });
+        }
+
+        const [bookingsResult, reviewsResult] = await Promise.all([
+            db.from("bookings").select("id, field_id, payment_status").in("field_id", fieldIds),
+            db.from("reviews").select("id, field_id, rating").in("field_id", fieldIds),
+        ]);
+
+        if (bookingsResult.error) throw bookingsResult.error;
+        if (reviewsResult.error) throw reviewsResult.error;
+
+        const bookings = bookingsResult.data || [];
+        const reviews = reviewsResult.data || [];
+
+        const fieldStats = new Map();
+        for (const field of fields || []) {
+            fieldStats.set(field.id, {
+                field_id: field.id,
+                field_name: field.field_name,
+                booking_count: 0,
+                paid_count: 0,
+                unpaid_count: 0,
+                review_count: 0,
+                average_rating: 0,
+            });
+        }
+
+        for (const booking of bookings) {
+            const row = fieldStats.get(booking.field_id);
+            if (!row) continue;
+            row.booking_count += 1;
+            if (booking.payment_status === "paid") row.paid_count += 1;
+            if (booking.payment_status === "unpaid") row.unpaid_count += 1;
+        }
+
+        const ratingAgg = new Map(); // field_id -> { sum, count }
+        for (const review of reviews) {
+            if (!ratingAgg.has(review.field_id)) ratingAgg.set(review.field_id, { sum: 0, count: 0 });
+            const agg = ratingAgg.get(review.field_id);
+            agg.sum += Number(review.rating || 0);
+            agg.count += 1;
+        }
+
+        for (const [fieldId, agg] of ratingAgg.entries()) {
+            const row = fieldStats.get(fieldId);
+            if (!row) continue;
+            row.review_count = agg.count;
+            row.average_rating = agg.count > 0 ? agg.sum / agg.count : 0;
+        }
+
+        const stats = Array.from(fieldStats.values()).sort((a, b) => b.booking_count - a.booking_count);
+
+        const totals = stats.reduce(
+            (acc, row) => {
+                acc.booking_count += row.booking_count;
+                acc.paid_count += row.paid_count;
+                acc.unpaid_count += row.unpaid_count;
+                acc.review_count += row.review_count;
+                acc.rating_sum += row.average_rating * row.review_count;
+                return acc;
+            },
+            { booking_count: 0, paid_count: 0, unpaid_count: 0, review_count: 0, rating_sum: 0 }
+        );
+
+        const average_rating = totals.review_count > 0 ? totals.rating_sum / totals.review_count : 0;
+
+        return res.status(200).json({
+            stats,
+            totals: {
+                booking_count: totals.booking_count,
+                paid_count: totals.paid_count,
+                unpaid_count: totals.unpaid_count,
+                review_count: totals.review_count,
+                average_rating,
+            },
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Server error while loading owner dashboard stats", error: error.message });
+    }
+};
+
 export const payBooking = async (req, res) => {
     try {
         const bookingId = Number(req.params.id);

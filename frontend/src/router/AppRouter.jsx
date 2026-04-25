@@ -10,6 +10,7 @@ import CustomerBookings from '../pages/customers/CustomerBookings';
 import OwnerDashboard from '../pages/owners/OwnerDashboard';
 import OwnerMessages from '../pages/owners/OwnerMessages';
 import OwnerFieldDetail from '../pages/owners/OwnerFieldDetail';
+import OwnerStatsDashboard from '../pages/owners/OwnerStatsDashboard';
 
 const AppRouter = () => {
   return (
@@ -33,6 +34,7 @@ const AppRouter = () => {
         {/* OWNERS */}
         <Route path="/owners" element={<OwnerLayout />}>
           <Route index element={<OwnerDashboard />} />
+          <Route path="stats" element={<OwnerStatsDashboard />} />
           <Route path="messages" element={<OwnerMessages />} />
           <Route path="fields/:id" element={<OwnerFieldDetail />} />
         </Route>
