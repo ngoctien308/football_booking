@@ -28,6 +28,7 @@ const CustomerBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   const [filterBookingDate, setFilterBookingDate] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
@@ -47,6 +48,7 @@ const CustomerBookings = () => {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     if (!user?.id) return;
     setShowAllBookings(false);
@@ -77,6 +79,39 @@ const CustomerBookings = () => {
       toast.error(err.response?.data?.message || "Có lỗi khi tạo thanh toán Stripe.");
     } finally {
       setPayingId(null);
+    }
+  };
+
+  const handleCancel = async (bookingId) => {
+    if (!user?.id) return;
+    const ok = window.confirm("Bạn muốn hủy lịch đặt này? (Chỉ hủy được khi chủ sân chưa duyệt)");
+    if (!ok) return;
+
+    try {
+      setCancellingId(bookingId);
+      const res = await axios.patch(`${API_BASE}/bookings/${bookingId}/cancel`, {
+        clerk_user_id: user.id,
+      });
+
+      const updated = res.data?.booking;
+      if (updated) {
+        setBookings((prev) =>
+          prev.map((b) => (b.id === Number(bookingId) ? { ...b, ...updated } : b))
+        );
+      } else {
+        await fetchBookings({
+          ...(filterBookingDate ? { booking_date: filterBookingDate } : {}),
+          ...(filterStatus ? { status: filterStatus } : {}),
+          ...(filterPaymentStatus ? { payment_status: filterPaymentStatus } : {}),
+        });
+      }
+
+      toast.success("Đã hủy lịch đặt.");
+    } catch (err) {
+      console.error("Error cancelling booking:", err);
+      toast.error(err.response?.data?.message || "Có lỗi khi hủy lịch đặt.");
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -130,27 +165,29 @@ const CustomerBookings = () => {
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">Lịch đặt của tôi</h1>
-            <p className="text-slate-500 text-sm mt-0.5">Xem các slot đã đặt theo thời gian.</p>
+            <h1 className="text-2xl font-semibold text-slate-900">Lịch đặt sân</h1>
+            <p className="text-sm text-slate-500 mt-1">Theo dõi và thanh toán các lịch đặt đã được duyệt.</p>
           </div>
         </div>
+
         <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <input
               type="date"
               value={filterBookingDate}
               onChange={(e) => setFilterBookingDate(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
             />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
             >
-              <option value="">Tất cả trạng thái</option>
+              <option value="">Trạng thái</option>
               <option value="pending">Đang chờ</option>
               <option value="approved">Đã xác nhận</option>
               <option value="rejected">Bị từ chối</option>
+              <option value="cancelled">Đã hủy</option>
             </select>
             <select
               value={filterPaymentStatus}
@@ -182,7 +219,7 @@ const CustomerBookings = () => {
               onClick={() => setShowAllBookings((v) => !v)}
               className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
             >
-              {showAllBookings ? "Thu gon" : "Xem tat ca"}
+              {showAllBookings ? "Thu gọn" : "Xem tất cả"}
             </button>
           </div>
         )}
@@ -237,27 +274,37 @@ const CustomerBookings = () => {
                   <p>Ngày đặt: {new Date(booking.created_at).toLocaleString("vi-VN")}</p>
                 </div>
 
-                {booking.note && (
-                  <p className="mt-2 text-sm text-slate-500">Ghi chú: {booking.note}</p>
-                )}
+                {booking.note && <p className="mt-2 text-sm text-slate-500">Ghi chú: {booking.note}</p>}
 
-                <div className="mt-3 flex items-center justify-between text-xs sm:text-sm text-slate-600">
+                <div className="mt-3 flex items-center justify-between gap-2 text-xs sm:text-sm text-slate-600">
                   <span>
                     Thanh toán:{" "}
                     <span className="font-medium">
                       {booking.payment_status === "paid" ? "Đã thanh toán" : "Chưa thanh toán"}
                     </span>
                   </span>
-                  {booking.status === "approved" && booking.payment_status !== "paid" && (
-                    <button
-                      type="button"
-                      disabled={payingId === booking.id}
-                      onClick={() => handlePay(booking.id)}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
-                    >
-                      {payingId === booking.id ? "Đang chuyển tới Stripe..." : "Thanh toán"}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {booking.status === "approved" && booking.payment_status !== "paid" && (
+                      <button
+                        type="button"
+                        disabled={payingId === booking.id}
+                        onClick={() => handlePay(booking.id)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {payingId === booking.id ? "Đang chuyển tới Stripe..." : "Thanh toán"}
+                      </button>
+                    )}
+                    {booking.status === "pending" && (
+                      <button
+                        type="button"
+                        disabled={cancellingId === booking.id}
+                        onClick={() => handleCancel(booking.id)}
+                        className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs sm:text-sm font-medium hover:bg-rose-100 disabled:opacity-60"
+                      >
+                        {cancellingId === booking.id ? "Đang hủy..." : "Hủy lịch"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -269,3 +316,4 @@ const CustomerBookings = () => {
 };
 
 export default CustomerBookings;
+

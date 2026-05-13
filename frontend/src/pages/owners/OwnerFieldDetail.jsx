@@ -106,11 +106,11 @@ const OwnerFieldDetail = () => {
           : prev?.field,
       }));
 
-      toast.success("ÄÃ£ gá»­i pháº£n há»“i.");
+      toast.success("Đã phản hồi đánh giá.");
       setReplyDrafts((prev) => ({ ...prev, [reviewId]: "" }));
     } catch (err) {
       console.error("Error replying review:", err);
-      toast.error(err.response?.data?.message || "KhÃ´ng thá»ƒ pháº£n há»“i Ä‘Ã¡nh giÃ¡.");
+      toast.error(err.response?.data?.message || "Không thể phản hồi đánh giá .");
     } finally {
       setReplyingReviewId(null);
     }

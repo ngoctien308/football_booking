@@ -477,6 +477,56 @@ export const updateBookingStatus = async (req, res) => {
     }
 };
 
+export const cancelBookingByCustomer = async (req, res) => {
+    try {
+        const bookingId = Number(req.params.id);
+        const { clerk_user_id } = req.body || {};
+
+        if (!Number.isFinite(bookingId) || !clerk_user_id) {
+            return res.status(400).json({ message: "Missing or invalid booking id or clerk_user_id" });
+        }
+
+        const customer = await getCustomerByClerkId(clerk_user_id);
+        if (customer.error === "NOT_FOUND") return res.status(404).json({ message: "User not found" });
+        if (customer.error === "DELETED") return res.status(403).json({ message: "Account has been deleted" });
+        if (customer.error === "LOCKED") return res.status(403).json({ message: "Account is locked" });
+        if (customer.error === "NOT_CUSTOMER") return res.status(403).json({ message: "Only customers can cancel bookings" });
+
+        const { data: booking, error: bookingError } = await db
+            .from("bookings")
+            .select("id, customer_id, status, payment_status")
+            .eq("id", bookingId)
+            .maybeSingle();
+        if (bookingError) throw bookingError;
+        if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+        if (booking.customer_id !== customer.id) {
+            return res.status(403).json({ message: "You cannot cancel this booking" });
+        }
+
+        if (booking.status !== "pending") {
+            return res.status(409).json({ message: "Only pending bookings can be cancelled" });
+        }
+
+        if (booking.payment_status === "paid") {
+            return res.status(409).json({ message: "Paid bookings cannot be cancelled via this endpoint" });
+        }
+
+        const { data: updated, error: updateError } = await db
+            .from("bookings")
+            .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+            .eq("id", bookingId)
+            .select("id, field_id, start_time, end_time, booking_date, total_price, status, payment_status, payment_method, paid_at, cancelled_at, created_at")
+            .maybeSingle();
+        if (updateError) throw updateError;
+
+        return res.status(200).json({ message: "Booking cancelled", booking: updated });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Server error while cancelling booking", error: error.message });
+    }
+};
+
 export const getOwnerDashboardStats = async (req, res) => {
     try {
         const { clerk_user_id } = req.params;

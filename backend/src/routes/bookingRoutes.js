@@ -6,6 +6,7 @@ import {
     getOwnerDashboardStats,
     getFieldAvailability,
     updateBookingStatus,
+    cancelBookingByCustomer,
     payBooking,
     createStripeCheckoutSession,
 } from "../controllers/bookingController.js";
@@ -18,6 +19,7 @@ router.get("/customer/:clerk_user_id", getBookingsByCustomer);
 router.get("/owner/:clerk_user_id", getBookingsByOwner);
 router.get("/owner/:clerk_user_id/stats", getOwnerDashboardStats);
 router.patch("/:id/status", updateBookingStatus);
+router.patch("/:id/cancel", cancelBookingByCustomer);
 router.patch("/:id/pay", payBooking);
 router.post("/:id/checkout", createStripeCheckoutSession);
 

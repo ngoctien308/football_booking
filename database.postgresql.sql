@@ -99,11 +99,16 @@ CREATE TABLE bookings (
   payment_status varchar(20) NOT NULL DEFAULT 'unpaid',
   payment_method varchar(50),
   paid_at timestamp without time zone,
+  cancelled_at timestamp without time zone,
   created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT uq_bookings_field_date_start UNIQUE (field_id, booking_date, start_time),
   CONSTRAINT fk_booking_customer FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_booking_field FOREIGN KEY (field_id) REFERENCES fields(id) ON DELETE CASCADE
 );
+
+-- Only prevent double-booking for active statuses
+CREATE UNIQUE INDEX uq_bookings_active_field_date_start
+ON bookings (field_id, booking_date, start_time)
+WHERE status IN ('pending', 'approved');
 
 CREATE INDEX idx_bookings_customer_id ON bookings(customer_id);
 CREATE INDEX idx_fields_owner_id ON fields(owner_id);

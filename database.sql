@@ -105,8 +105,14 @@ CREATE TABLE `bookings` (
    `payment_status` varchar(20) NOT NULL DEFAULT 'unpaid',
    `payment_method` varchar(50) DEFAULT NULL,
    `paid_at` datetime DEFAULT NULL,
+   `cancelled_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
+  -- NOTE: MySQL cannot do partial unique indexes.
+  -- This unique key prevents re-booking a cancelled slot; if you use MySQL, consider:
+  -- - deleting cancelled/rejected rows, OR
+  -- - moving status into the key, OR
+  -- - enforcing active-slot uniqueness at application level.
   UNIQUE KEY `field_id` (`field_id`,`booking_date`,`start_time`),
   KEY `fk_booking_customer` (`customer_id`),
   CONSTRAINT `fk_booking_customer` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,

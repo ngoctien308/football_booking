@@ -323,6 +323,7 @@ const OwnerDashboard = () => {
               <option value="approved">Đã xác nhận</option>
               <option value="rejected">Đã từ chối</option>
               <option value="pending">Chưa xác nhận</option>
+              <option value="cancelled">Đã hủy</option>
             </select>
             <select
               value={bookingPaymentStatus}
