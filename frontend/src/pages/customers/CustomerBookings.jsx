@@ -4,6 +4,7 @@ import { useUser } from "@clerk/clerk-react";
 import axios from "axios";
 import { Clock, MapPin } from "lucide-react";
 import toast from "react-hot-toast";
+import ConfirmModal from "../../components/ConfirmModal.jsx";
 
 const API_BASE = "http://localhost:3000/api";
 
@@ -33,6 +34,7 @@ const CustomerBookings = () => {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
   const [showAllBookings, setShowAllBookings] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState({ open: false, bookingId: null });
 
   const fetchBookings = async (filters = {}) => {
     if (!user?.id) return;
@@ -84,8 +86,6 @@ const CustomerBookings = () => {
 
   const handleCancel = async (bookingId) => {
     if (!user?.id) return;
-    const ok = window.confirm("Bạn muốn hủy lịch đặt này? (Chỉ hủy được khi chủ sân chưa duyệt)");
-    if (!ok) return;
 
     try {
       setCancellingId(bookingId);
@@ -298,7 +298,7 @@ const CustomerBookings = () => {
                       <button
                         type="button"
                         disabled={cancellingId === booking.id}
-                        onClick={() => handleCancel(booking.id)}
+                        onClick={() => setConfirmCancel({ open: true, bookingId: booking.id })}
                         className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs sm:text-sm font-medium hover:bg-rose-100 disabled:opacity-60"
                       >
                         {cancellingId === booking.id ? "Đang hủy..." : "Hủy lịch"}
@@ -311,9 +311,24 @@ const CustomerBookings = () => {
           </div>
         )}
       </main>
+
+      <ConfirmModal
+        open={confirmCancel.open}
+        title="Hủy lịch đặt sân?"
+        message="Bạn chỉ có thể hủy khi chủ sân chưa duyệt."
+        confirmText="Hủy lịch"
+        cancelText="Đóng"
+        loading={cancellingId === confirmCancel.bookingId}
+        tone="danger"
+        onCancel={() => setConfirmCancel({ open: false, bookingId: null })}
+        onConfirm={async () => {
+          const id = confirmCancel.bookingId;
+          setConfirmCancel({ open: false, bookingId: null });
+          if (id) await handleCancel(id);
+        }}
+      />
     </div>
   );
 };
 
 export default CustomerBookings;
-

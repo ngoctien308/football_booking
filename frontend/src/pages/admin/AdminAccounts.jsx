@@ -2,6 +2,7 @@
 import axios from "axios";
 import { Loader2, Shield, Search, Lock, Unlock, Trash2, CheckCircle2, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
+import ConfirmModal from "../../components/ConfirmModal.jsx";
 
 const API_BASE = "http://localhost:3000/api";
 
@@ -14,6 +15,8 @@ const AdminAccounts = () => {
   const [accounts, setAccounts] = useState([]);
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
+  const [confirmState, setConfirmState] = useState({ open: false, accountId: null });
+  const [deletingId, setDeletingId] = useState(null);
 
   const token = () => localStorage.getItem("admin_token") || "";
 
@@ -81,16 +84,12 @@ const AdminAccounts = () => {
     }
   };
 
-  const deleteAccount = async (accountId, hard) => {
+  const deleteAccount = async (accountId) => {
     const t = token();
     if (!t) return;
 
-    const ok = window.confirm(
-      "Xóa vĩnh viễn tài khoản này? Dữ liệu liên quan (owner/fields/bookings/...) có thể bị xóa theo."
-    );
-    if (!ok) return;
-
     try {
+      setDeletingId(accountId);
       await axios.delete(`${API_BASE}/admin/accounts/${accountId}`, {
         headers: { Authorization: `Bearer ${t}` },
         params: { hard: "true" },
@@ -100,6 +99,8 @@ const AdminAccounts = () => {
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || "Không thể xóa tài khoản.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -232,7 +233,7 @@ const AdminAccounts = () => {
 
                           <button
                             type="button"
-                            onClick={() => deleteAccount(a.id, true)}
+                            onClick={() => setConfirmState({ open: true, accountId: a.id })}
                             className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-sm font-medium text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1"
                             title="Xóa vĩnh viễn"
                           >
@@ -249,6 +250,22 @@ const AdminAccounts = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmState.open}
+        title="Xóa vĩnh viễn tài khoản?"
+        message="Dữ liệu liên quan (owner/fields/bookings/...) có thể bị xóa theo. Thao tác này không thể hoàn tác."
+        confirmText="Xóa"
+        cancelText="Hủy"
+        loading={deletingId === confirmState.accountId}
+        tone="danger"
+        onCancel={() => setConfirmState({ open: false, accountId: null })}
+        onConfirm={async () => {
+          const id = confirmState.accountId;
+          setConfirmState({ open: false, accountId: null });
+          if (id) await deleteAccount(id);
+        }}
+      />
     </div>
   );
 };
