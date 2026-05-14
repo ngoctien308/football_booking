@@ -53,19 +53,48 @@ const getDefaultSlots = () => {
 };
 
 const calculateRemainingSlots = (fieldId, bookingRows) => {
+    return calculateRemainingSlotsForDate({
+        fieldId,
+        bookingRows,
+        bookingDate: new Date().toISOString().slice(0, 10),
+    });
+};
+
+const calculateRemainingSlotsForDate = ({ fieldId, bookingRows, bookingDate }) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const dateStr = String(bookingDate || "").slice(0, 10);
+
+    if (!dateStr) return 0;
+
+    if (dateStr < today) return 0;
+
     const bookedStarts = new Set(
-        (bookingRows || []).filter((row) => row.field_id === fieldId).map((row) => row.start_time)
-    );
-    const pastCurrentTimeAndNotBoookedSlots = new Set(
-        getDefaultSlots().filter((slot) => {
-            const [h, m] = slot.start_time.split(":").map(Number);
-            const slotTime = new Date();
-            slotTime.setHours(h, m, 0, 0);
-            return slotTime < new Date() && !bookedStarts.has(slot.start_time);
-        }).map((slot) => slot.start_time)
+        (bookingRows || [])
+            .filter((row) => row.field_id === fieldId && String(row.booking_date || "").slice(0, 10) === dateStr)
+            .map((row) => row.start_time)
     );
 
-    return Math.max(SLOT_COUNT_PER_DAY - bookedStarts.size - pastCurrentTimeAndNotBoookedSlots.size, 0);
+    if (dateStr !== today) {
+        return Math.max(SLOT_COUNT_PER_DAY - bookedStarts.size, 0);
+    }
+
+    const now = new Date();
+    const pastOrCurrentSlots = new Set(
+        getDefaultSlots()
+            .filter((slot) => {
+                const [h, m] = slot.start_time.split(":").map(Number);
+                const slotTime = new Date();
+                slotTime.setHours(h, m, 0, 0);
+                return slotTime <= now;
+            })
+            .map((slot) => slot.start_time)
+    );
+
+    // Slots earlier than (or equal) current time are considered unavailable,
+    // even if not booked.
+    const unavailable = new Set([...bookedStarts, ...pastOrCurrentSlots]);
+
+    return Math.max(SLOT_COUNT_PER_DAY - unavailable.size, 0);
 };
 
 async function getOwnerFromClerk(clerkUserId) {
@@ -93,10 +122,32 @@ async function getOwnerFromClerk(clerkUserId) {
 
 export const getAllFields = async (req, res) => {
     try {
-        const { data: fields, error: fieldsError } = await db
-            .from("fields")
-            .select("*")
-            .order("created_at", { ascending: false });
+        const bookingDate = String(req.query.booking_date || "").trim() || new Date().toISOString().slice(0, 10);
+        const startTimeRaw = String(req.query.start_time || "").trim();
+        const addressRaw = String(req.query.address || "").trim();
+
+        let normalizedStartTime = "";
+        if (startTimeRaw) {
+            const timeOnly = startTimeRaw.slice(0, 5);
+            if (/^\d{2}:\d{2}$/.test(timeOnly)) {
+                normalizedStartTime = `${timeOnly}:00`;
+            } else if (/^\d{2}:\d{2}:\d{2}$/.test(startTimeRaw)) {
+                normalizedStartTime = startTimeRaw;
+            }
+        }
+
+        const defaultSlots = getDefaultSlots();
+        const defaultStartTimes = new Set(defaultSlots.map((s) => s.start_time));
+        if (normalizedStartTime && !defaultStartTimes.has(normalizedStartTime)) {
+            return res.status(400).json({ message: "Invalid start_time" });
+        }
+
+        let fieldsQuery = db.from("fields").select("*").order("created_at", { ascending: false });
+        if (addressRaw) {
+            fieldsQuery = fieldsQuery.ilike("address", `%${addressRaw}%`);
+        }
+
+        const { data: fields, error: fieldsError } = await fieldsQuery;
 
         if (fieldsError) throw fieldsError;
         if (!fields || fields.length === 0) {
@@ -116,7 +167,7 @@ export const getAllFields = async (req, res) => {
                 .from("bookings")
                 .select("field_id, start_time, booking_date")
                 .in("field_id", fieldIds)
-                .eq("booking_date", today)
+                .eq("booking_date", bookingDate)
                 .in("status", ["pending", "approved"]),
             db.from("reviews").select("field_id, rating").in("field_id", fieldIds),
         ]);
@@ -147,11 +198,37 @@ export const getAllFields = async (req, res) => {
             return {
                 ...field,
                 primary_image: toImageUrl(primaryImage?.image_url || null),
-                remaining_slots: calculateRemainingSlots(field.id, bookingsResult.data || []),
+                remaining_slots: calculateRemainingSlotsForDate({
+                    fieldId: field.id,
+                    bookingRows: bookingsResult.data || [],
+                    bookingDate,
+                }),
                 average_rating: Number(reviewStats.average_rating) || 0,
                 review_count: Number(reviewStats.review_count) || 0,
             };
         });
+
+        if (normalizedStartTime) {
+            const bookedFieldIds = new Set(
+                (bookingsResult.data || [])
+                    .filter((row) => row.start_time === normalizedStartTime)
+                    .map((row) => row.field_id)
+            );
+
+            const isPastForRequestedTime = (() => {
+                if (bookingDate !== today) return false;
+                const [h, m] = normalizedStartTime.split(":").map(Number);
+                const slotTime = new Date();
+                slotTime.setHours(h, m, 0, 0);
+                return slotTime <= new Date();
+            })();
+
+            const filtered = isPastForRequestedTime
+                ? []
+                : formattedFields.filter((f) => !bookedFieldIds.has(f.id));
+
+            return res.status(200).json({ fields: filtered });
+        }
 
         return res.status(200).json({ fields: formattedFields });
     } catch (error) {
@@ -257,7 +334,11 @@ export const getFieldDetail = async (req, res) => {
 
         const timeSlots = getDefaultSlots();
         const reviewStats = calculateReviewStats(reviews);
-        const remainingSlotNumber = calculateRemainingSlots(fieldId, bookingsResult.data || []); 
+        const remainingSlotNumber = calculateRemainingSlotsForDate({
+            fieldId,
+            bookingRows: bookingsResult.data || [],
+            bookingDate: today,
+        });
 
         const formattedField = {
             ...field,

@@ -1,53 +1,33 @@
-import { MapPin, Clock, Star, Users, ArrowRight } from "lucide-react";
+﻿import { MapPin, Clock, Star, Users, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const HomePage = () => {
   const [fields, setFields] = useState([]);
-  const [searchText, setSearchText] = useState("");
+  const [addressText, setAddressText] = useState("");
+  const [desiredTime, setDesiredTime] = useState("");
+  const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchFields = async () => {
       try {
-        const res = await axios.get("http://localhost:3000/api/fields");
+        const res = await axios.get("http://localhost:3000/api/fields", {
+          params: {
+            ...(addressText.trim() ? { address: addressText.trim() } : {}),
+            ...(desiredTime ? { start_time: desiredTime } : {}),
+            ...(bookingDate ? { booking_date: bookingDate } : {}),
+          },
+        });
         setFields(res.data?.fields || []);
       } catch (err) {
         console.error("Error fetching fields:", err);
+        setFields([]);
       }
     };
     fetchFields();
-  }, []);
-
-  const renderStars = (rating) => {
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-
-    return (
-      <div className="flex items-center gap-0.5">
-        {[...Array(fullStars)].map((_, i) => (
-          <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-        ))}
-        {hasHalfStar && (
-          <Star className="w-4 h-4 fill-amber-400 text-amber-400 opacity-50" />
-        )}
-        {[...Array(emptyStars)].map((_, i) => (
-          <Star key={i} className="w-4 h-4 text-amber-400 fill-none" />
-        ))}
-      </div>
-    );
-  };
-
-  const filteredFields = fields.filter((field) => {
-    if (!searchText.trim()) return true;
-    const keyword = searchText.toLowerCase();
-    return (
-      field.field_name?.toLowerCase().includes(keyword) ||
-      field.address?.toLowerCase().includes(keyword)
-    );
-  });
+  }, [addressText, desiredTime, bookingDate]);
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-white">
@@ -64,7 +44,7 @@ const HomePage = () => {
             </span>
           </h1>
           <p className="mt-3 text-sm md:text-base text-slate-500 max-w-xl mx-auto">
-            Chọn sân đẹp nhất gần bạn, slot 1.5 giờ từ 06:00–23:00, đặt nhanh chỉ với vài bước.
+            Chọn sân đẹp nhất gần bạn, slot 1.5 giờ từ 06:00-23:00, đặt nhanh chỉ với vài bước.
           </p>
         </div>
 
@@ -108,34 +88,77 @@ const HomePage = () => {
                     <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
                     <input
                       type="text"
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
+                      value={addressText}
+                      onChange={(e) => setAddressText(e.target.value)}
                       placeholder="Nhập khu vực hoặc tên sân..."
                       className="w-full bg-transparent outline-none text-slate-800 placeholder:text-slate-400 text-xs md:text-sm"
                     />
                   </div>
                   <div className="hidden md:flex items-center gap-2 text-slate-500 text-xs">
                     <Clock className="w-4 h-4 text-amber-500" />
-                    <span>Slot hôm nay · 1.5 giờ/slot</span>
+                    <div className="flex items-center gap-2">
+                      <span>Giờ:</span>
+                      <input
+                        type="time"
+                        value={desiredTime}
+                        onChange={(e) => setDesiredTime(e.target.value)}
+                        className="bg-transparent outline-none text-slate-700"
+                        step={60}
+                      />
+                      <span className="ml-2">Ngày:</span>
+                      <input
+                        type="date"
+                        value={bookingDate}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        className="bg-transparent outline-none text-slate-700"
+                      />
+                    </div>
                   </div>
                 </div>
                 <button
                   type="button"
+                  onClick={() => {
+                    setAddressText("");
+                    setDesiredTime("");
+                    setBookingDate(new Date().toISOString().slice(0, 10));
+                  }}
                   className="self-end md:self-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-slate-900 text-white text-xs md:text-sm font-semibold hover:bg-slate-800 transition"
                 >
-                  Tìm sân
+                  Reset
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
 
+              <div className="md:hidden grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-2 text-xs">
+                  <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                  <input
+                    type="time"
+                    value={desiredTime}
+                    onChange={(e) => setDesiredTime(e.target.value)}
+                    className="bg-transparent outline-none text-slate-700 w-full"
+                    step={60}
+                  />
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-2 text-xs">
+                  <span className="text-slate-500 shrink-0">Ngày</span>
+                  <input
+                    type="date"
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    className="bg-transparent outline-none text-slate-700 w-full"
+                  />
+                </div>
+              </div>
+
               {/* Field cards */}
-              {filteredFields.length === 0 ? (
+              {fields.length === 0 ? (
                 <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white py-8 text-center text-sm text-slate-500">
                   Hiện chưa có sân phù hợp với từ khóa của bạn.
                 </div>
               ) : (
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-                  {filteredFields.map((field) => {
+                  {fields.map((field) => {
                     const canBook = field.status === "active" && (field.remaining_slots || 0) > 0;
                     const rating = field.average_rating || 0;
 
@@ -229,3 +252,7 @@ const HomePage = () => {
 };
 
 export default HomePage;
+
+
+
+
