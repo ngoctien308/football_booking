@@ -130,15 +130,32 @@ export const getAllFields = async (req, res) => {
         if (startTimeRaw) {
             const timeOnly = startTimeRaw.slice(0, 5);
             if (/^\d{2}:\d{2}$/.test(timeOnly)) {
-                normalizedStartTime = `${timeOnly}:00`;
+                const [hh, mm] = timeOnly.split(":").map(Number);
+                if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+                    return res.status(400).json({ message: "Invalid start_time" });
+                }
+                normalizedStartTime = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
             } else if (/^\d{2}:\d{2}:\d{2}$/.test(startTimeRaw)) {
-                normalizedStartTime = startTimeRaw;
+                const [hh, mm, ss] = startTimeRaw.split(":").map(Number);
+                if (
+                    !Number.isFinite(hh) ||
+                    !Number.isFinite(mm) ||
+                    !Number.isFinite(ss) ||
+                    hh < 0 ||
+                    hh > 23 ||
+                    mm < 0 ||
+                    mm > 59 ||
+                    ss < 0 ||
+                    ss > 59
+                ) {
+                    return res.status(400).json({ message: "Invalid start_time" });
+                }
+                normalizedStartTime = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
             }
         }
 
         const defaultSlots = getDefaultSlots();
-        const defaultStartTimes = new Set(defaultSlots.map((s) => s.start_time));
-        if (normalizedStartTime && !defaultStartTimes.has(normalizedStartTime)) {
+        if (startTimeRaw && !normalizedStartTime) {
             return res.status(400).json({ message: "Invalid start_time" });
         }
 
@@ -209,23 +226,47 @@ export const getAllFields = async (req, res) => {
         });
 
         if (normalizedStartTime) {
-            const bookedFieldIds = new Set(
-                (bookingsResult.data || [])
-                    .filter((row) => row.start_time === normalizedStartTime)
-                    .map((row) => row.field_id)
-            );
+            // Keep only fields that have at least one available slot whose start_time >= requested time.
+            // Example: request 05:00 -> show fields with 05:30, 06:00... still available.
+            const candidateStartTimes = defaultSlots
+                .map((s) => s.start_time)
+                .filter((t) => t >= normalizedStartTime);
+            const candidateStartTimeSet = new Set(candidateStartTimes);
 
-            const isPastForRequestedTime = (() => {
-                if (bookingDate !== today) return false;
-                const [h, m] = normalizedStartTime.split(":").map(Number);
-                const slotTime = new Date();
-                slotTime.setHours(h, m, 0, 0);
-                return slotTime <= new Date();
+            // For today, slots earlier than (or equal) now are unavailable even if not booked.
+            const pastOrCurrentToday = (() => {
+                if (bookingDate !== today) return new Set();
+                const now = new Date();
+                return new Set(
+                    defaultSlots
+                        .filter((slot) => {
+                            if (slot.start_time < normalizedStartTime) return false;
+                            const [h, m] = slot.start_time.split(":").map(Number);
+                            const slotTime = new Date();
+                            slotTime.setHours(h, m, 0, 0);
+                            return slotTime <= now;
+                        })
+                        .map((slot) => slot.start_time)
+                );
             })();
 
-            const filtered = isPastForRequestedTime
-                ? []
-                : formattedFields.filter((f) => !bookedFieldIds.has(f.id));
+            // Build a map: field_id -> Set(booked start_time) for this date.
+            const bookedStartsByField = new Map();
+            for (const row of bookingsResult.data || []) {
+                if (!candidateStartTimeSet.has(row.start_time)) continue;
+                if (!bookedStartsByField.has(row.field_id)) bookedStartsByField.set(row.field_id, new Set());
+                bookedStartsByField.get(row.field_id).add(row.start_time);
+            }
+
+            const filtered = formattedFields.filter((f) => {
+                const bookedSet = bookedStartsByField.get(f.id) || new Set();
+                for (const t of candidateStartTimes) {
+                    if (pastOrCurrentToday.has(t)) continue;
+                    if (bookedSet.has(t)) continue;
+                    return true;
+                }
+                return false;
+            });
 
             return res.status(200).json({ fields: filtered });
         }
