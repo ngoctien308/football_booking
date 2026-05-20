@@ -122,9 +122,20 @@ async function getOwnerFromClerk(clerkUserId) {
 
 export const getAllFields = async (req, res) => {
     try {
+        const normalizeSearchText = (s) =>
+            String(s || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/đ/g, "d")
+                .replace(/Đ/g, "d");
+
         const bookingDate = String(req.query.booking_date || "").trim() || new Date().toISOString().slice(0, 10);
         const startTimeRaw = String(req.query.start_time || "").trim();
         const addressRaw = String(req.query.address || "").trim();
+        const fieldNameRaw = String(req.query.field_name || "").trim();
+        const queryRaw = String(req.query.q || req.query.query || req.query.search || "").trim();
 
         let normalizedStartTime = "";
         if (startTimeRaw) {
@@ -160,8 +171,21 @@ export const getAllFields = async (req, res) => {
         }
 
         let fieldsQuery = db.from("fields").select("*").order("created_at", { ascending: false });
-        if (addressRaw) {
-            fieldsQuery = fieldsQuery.ilike("address", `%${addressRaw}%`);
+        // Backward compatible: `address` keeps working, but prefer `q` for name/address search.
+        if (queryRaw) {
+            const qNorm = normalizeSearchText(queryRaw);
+            const escaped = qNorm.replaceAll(",", "\\,");
+            // Requires DB columns: fields.field_name_search, fields.address_search (unaccent(lower(...))).
+            fieldsQuery = fieldsQuery.or(`field_name_search.ilike.%${escaped}%,address_search.ilike.%${escaped}%`);
+        } else {
+            if (fieldNameRaw) {
+                const nameNorm = normalizeSearchText(fieldNameRaw);
+                fieldsQuery = fieldsQuery.ilike("field_name_search", `%${nameNorm}%`);
+            }
+            if (addressRaw) {
+                const addrNorm = normalizeSearchText(addressRaw);
+                fieldsQuery = fieldsQuery.ilike("address_search", `%${addrNorm}%`);
+            }
         }
 
         const { data: fields, error: fieldsError } = await fieldsQuery;

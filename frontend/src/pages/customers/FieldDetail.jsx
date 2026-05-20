@@ -43,6 +43,12 @@ const FieldDetail = () => {
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [reviewToDelete, setReviewToDelete] = useState(null);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isToday = bookingDate === todayStr;
+  const bookingDateLabel = isToday
+    ? "hôm nay"
+    : `ngày ${new Date(`${bookingDate}T00:00:00`).toLocaleDateString("vi-VN")}`;
+
   useEffect(() => {
     const fetchDetail = async () => {
       try {
@@ -428,7 +434,7 @@ const FieldDetail = () => {
               </div>
               <div className="flex items-center gap-2 text-slate-500 text-sm mt-2">
                 <Clock className="w-4 h-4 text-emerald-500" />
-                <span>Còn {field.remaining_slots || 0} slot trống trong ngày hôm nay</span>
+                <span>Còn {field.remaining_slots || 0} slot trống trong {bookingDateLabel}</span>
               </div>
               <div className="mt-3 flex gap-2">
                 <button

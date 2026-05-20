@@ -1,20 +1,28 @@
-﻿import { MapPin, Clock, Star, Users, ArrowRight } from "lucide-react";
+﻿import { MapPin, Clock, Star, Users, ArrowRight, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const HomePage = () => {
   const [fields, setFields] = useState([]);
+  const [fieldNameText, setFieldNameText] = useState("");
   const [addressText, setAddressText] = useState("");
   const [desiredTime, setDesiredTime] = useState("");
   const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const navigate = useNavigate();
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isToday = bookingDate === todayStr;
+  const bookingDateLabel = isToday
+    ? "hôm nay"
+    : `ngày ${new Date(`${bookingDate}T00:00:00`).toLocaleDateString("vi-VN")}`;
 
   useEffect(() => {
     const fetchFields = async () => {
       try {
         const res = await axios.get("http://localhost:3000/api/fields", {
           params: {
+            ...(fieldNameText.trim() ? { field_name: fieldNameText.trim() } : {}),
             ...(addressText.trim() ? { address: addressText.trim() } : {}),
             ...(desiredTime ? { start_time: desiredTime } : {}),
             ...(bookingDate ? { booking_date: bookingDate } : {}),
@@ -27,7 +35,7 @@ const HomePage = () => {
       }
     };
     fetchFields();
-  }, [addressText, desiredTime, bookingDate]);
+  }, [fieldNameText, addressText, desiredTime, bookingDate]);
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-white">
@@ -83,18 +91,28 @@ const HomePage = () => {
             <div className="lg:flex-1 space-y-5">
               {/* Filter bar */}
               <div className="bg-white rounded-full shadow-sm border border-slate-200 px-4 py-3 flex flex-col md:flex-row md:items-center gap-3 text-xs md:text-sm">
-                <div className="flex-1 flex items-center gap-3 md:gap-4">
-                  <div className="flex-1 flex items-center gap-2 border-slate-200 md:border-r md:pr-4">
+                <div className="flex-1 flex flex-wrap items-center gap-3 md:gap-4 min-w-0">
+                  <div className="flex-1 min-w-[180px] flex items-center gap-2 border-slate-200 md:border-r md:pr-4">
+                    <Search className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <input
+                      type="text"
+                      value={fieldNameText}
+                      onChange={(e) => setFieldNameText(e.target.value)}
+                      placeholder="Tên sân..."
+                      className="w-full bg-transparent outline-none text-slate-800 placeholder:text-slate-400 text-xs md:text-sm"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[200px] hidden md:flex items-center gap-2 border-slate-200 md:border-r md:pr-4">
                     <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
                     <input
                       type="text"
                       value={addressText}
                       onChange={(e) => setAddressText(e.target.value)}
-                      placeholder="Nhập khu vực hoặc tên sân..."
+                      placeholder="Địa chỉ..."
                       className="w-full bg-transparent outline-none text-slate-800 placeholder:text-slate-400 text-xs md:text-sm"
                     />
                   </div>
-                  <div className="hidden md:flex items-center gap-2 text-slate-500 text-xs">
+                  <div className="hidden md:flex items-center gap-2 text-slate-500 text-xs md:basis-full lg:basis-auto">
                     <Clock className="w-4 h-4 text-amber-500" />
                     <div className="flex items-center gap-2">
                       <span>Giờ:</span>
@@ -118,6 +136,7 @@ const HomePage = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    setFieldNameText("");
                     setAddressText("");
                     setDesiredTime("");
                     setBookingDate(new Date().toISOString().slice(0, 10));
@@ -130,6 +149,26 @@ const HomePage = () => {
               </div>
 
               <div className="md:hidden grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-2 text-xs col-span-2">
+                  <Search className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <input
+                    type="text"
+                    value={fieldNameText}
+                    onChange={(e) => setFieldNameText(e.target.value)}
+                    placeholder="Tên sân..."
+                    className="bg-transparent outline-none text-slate-700 w-full"
+                  />
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-2 text-xs col-span-2">
+                  <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <input
+                    type="text"
+                    value={addressText}
+                    onChange={(e) => setAddressText(e.target.value)}
+                    placeholder="Địa chỉ..."
+                    className="bg-transparent outline-none text-slate-700 w-full"
+                  />
+                </div>
                 <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-2 text-xs">
                   <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                   <input
@@ -225,7 +264,7 @@ const HomePage = () => {
                                 <span className="font-semibold">
                                   {field.remaining_slots || 0}
                                 </span>{" "}
-                                slot hôm nay
+                                slot {bookingDateLabel}
                               </span>
                             </div>
                             <div
