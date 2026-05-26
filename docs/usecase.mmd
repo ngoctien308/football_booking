@@ -1,0 +1,57 @@
+﻿flowchart LR
+  %% Actors
+  KH[Khách hàng]
+  CS[Chủ sân]
+  AD[Admin]
+  STR((Stripe))
+
+  %% Use cases
+  subgraph UC[Hệ thống đặt sân bóng]
+    DK((Đăng ký/Đăng nhập))
+    DX((Đăng xuất))
+    TIM((Tìm kiếm sân))
+    XEM((Xem chi tiết sân))
+    DAT((Đặt sân))
+    TT((Thanh toán online))
+    QLBOOK((Quản lý booking cá nhân))
+    HUY((Hủy/đổi lịch booking))
+    DG((Đánh giá & nhận xét))
+    CHAT((Nhắn tin))
+
+    QLSAN((Quản lý sân))
+    QLLICH((Quản lý lịch trống/giá))
+    XL((Xử lý yêu cầu đặt sân))
+    DOANHTHU((Thống kê doanh thu))
+
+    QLUSER((Quản lý người dùng))
+    DUYET((Duyệt/khóa sân & nội dung))
+  end
+
+  %% Relationships
+  KH --- DK
+  KH --- DX
+  KH --- TIM
+  KH --- XEM
+  KH --- DAT
+  KH --- QLBOOK
+  KH --- HUY
+  KH --- DG
+  KH --- CHAT
+
+  CS --- DK
+  CS --- DX
+  CS --- QLSAN
+  CS --- QLLICH
+  CS --- XL
+  CS --- DOANHTHU
+  CS --- CHAT
+
+  AD --- QLUSER
+  AD --- DUYET
+
+  DAT --> TT
+  TT --- STR
+
+  %% Notes
+  DK -. chưa chọn vai trò -> có thể .- DX
+  DG -. sau khi sử dụng .- QLBOOK

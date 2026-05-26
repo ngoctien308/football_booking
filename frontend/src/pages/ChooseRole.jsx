@@ -1,7 +1,7 @@
 ﻿import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { User, Store, ArrowRight, LogIn, Loader2 } from "lucide-react";
-import { SignUpButton, useUser } from "@clerk/clerk-react";
+import { SignOutButton, SignUpButton, useUser } from "@clerk/clerk-react";
 import axios from "axios";
 import toast from "react-hot-toast";
 
@@ -17,6 +17,11 @@ const ChooseRole = () => {
 
   const setRoleAndGo = (role) => {
     localStorage.setItem("roleForNewAccount", role);
+  };
+
+  const onSignOut = () => {
+    localStorage.removeItem("roleForNewAccount");
+    navigate("/choose-role");
   };
 
   const completeRegistration = async (role) => {
@@ -48,6 +53,15 @@ const ChooseRole = () => {
           <p className="text-slate-500 text-sm mt-1">
             {user ? "Chọn một loại tài khoản để tiếp tục." : "Chọn một loại tài khoản bên dưới."}
           </p>
+          {user && (
+            <div className="mt-3">
+              <SignOutButton redirectUrl="/choose-role" signOutCallback={onSignOut}>
+                <button type="button" className="text-slate-600 text-sm hover:underline" disabled={submitting}>
+                  Đăng xuất
+                </button>
+              </SignOutButton>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
