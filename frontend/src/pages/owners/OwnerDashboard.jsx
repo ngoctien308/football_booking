@@ -4,6 +4,7 @@ import axios from "axios";
 import { Plus, Loader2, Building2, ImagePlus, Clock, Trash2, Check, X, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import OwnerServicesList from "../../components/owners/OwnerServicesList";
 
 const API_BASE = "http://localhost:3000/api";
 
@@ -290,6 +291,8 @@ const OwnerDashboard = () => {
           })}
         </ul>
         )}
+
+        <OwnerServicesList />
 
         <div className="mt-8">
         <div className="flex items-center justify-between mb-3">

@@ -975,13 +975,9 @@ const FieldDetail = () => {
   const [contactPhone, setContactPhone] = useState("");
   const [bookingNote, setBookingNote] = useState("");
   const [creatingBooking, setCreatingBooking] = useState(false);
-  const availableServices = [
-    { key: "water", name: "Nước đóng chai", unit_price: 10000 },
-    { key: "jersey", name: "Áo pitch", unit_price: 50000 },
-    { key: "shoes", name: "Thuê giày", unit_price: 30000 },
-    { key: "ball", name: "Thuê bóng", unit_price: 20000 },
-  ];
-  const [selectedServices, setSelectedServices] = useState(() => availableServices.map(s => ({...s, quantity:0})));
+  const [services, setServices] = useState([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [selectedServices, setSelectedServices] = useState([]);
   const [applyExtrasToEachSlot, setApplyExtrasToEachSlot] = useState(true);
 
   // Chat UI
@@ -1023,6 +1019,39 @@ const FieldDetail = () => {
       }
     };
     fetchDetail();
+  }, [id]);
+
+  const fetchServices = async () => {
+    if (!id) return;
+    setServicesLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE}/services/field/${id}`);
+      const fetchedServices = (res.data.services || [])
+        .filter(s => s.status === 'active')
+        .map(s => ({
+          id: s.id,
+          key: `service-${s.id}`,
+          name: s.service_name,
+          unit_price: s.price,
+          unit: s.unit,
+          quantity_available: s.quantity_available,
+          quantity: 0
+        }));
+      setServices(fetchedServices);
+      setSelectedServices(fetchedServices.map(s => ({...s, quantity: 0})));
+    } catch (err) {
+      console.error("Error fetching services:", err);
+      setServices([]);
+      setSelectedServices([]);
+    } finally {
+      setServicesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) {
+      fetchServices();
+    }
   }, [id]);
 
   const fetchAvailability = async (dateStr) => {
@@ -1133,6 +1162,14 @@ const FieldDetail = () => {
     const chosen = availability.filter((s) => selectedStartTimes.has(s.start_time) && s.status.is_available);
     if (chosen.length === 0) {
       toast.error("Vui lòng chọn ít nhất 1 khung giờ còn trống.");
+      return;
+    }
+
+    // Validate services quantity
+    const invalidServices = selectedServices.filter(s => s.quantity > s.quantity_available);
+    if (invalidServices.length > 0) {
+      const errorMsg = invalidServices.map(s => `${s.name}: chỉ còn ${s.quantity_available} ${s.unit || 'cái'}`).join(', ');
+      toast.error(`Số lượng dịch vụ không đủ: ${errorMsg}`);
       return;
     }
 
@@ -1794,26 +1831,43 @@ const FieldDetail = () => {
                     <input type="checkbox" checked={applyExtrasToEachSlot} onChange={(e)=>setApplyExtrasToEachSlot(e.target.checked)} id="applyEach" />
                     <label htmlFor="applyEach" className="text-sm text-slate-600">Áp dụng cho mỗi khung giờ đã chọn</label>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedServices.map((s, idx) => (
-                      <div key={s.key} className="flex items-center gap-2">
-                        <div className="flex-1 text-sm">
-                          <div className="font-medium">{s.name}</div>
-                          <div className="text-xs text-slate-500">{Number(s.unit_price).toLocaleString("vi-VN")}đ / cái</div>
-                        </div>
-                        <input
-                          type="number"
-                          min={0}
-                          value={s.quantity}
-                          onChange={(e) => {
-                            const q = Math.max(0, Number(e.target.value) || 0);
-                            setSelectedServices(prev => prev.map((p,i) => i===idx ? {...p, quantity: q} : p));
-                          }}
-                          className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-sm"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  {servicesLoading ? (
+                    <div className="text-sm text-slate-500">Đang tải dịch vụ...</div>
+                  ) : selectedServices.length === 0 ? (
+                    <div className="text-sm text-slate-500">Sân này chưa có dịch vụ đi kèm.</div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedServices.map((s, idx) => {
+                        const isExceeded = s.quantity > s.quantity_available;
+                        return (
+                          <div key={s.key} className="flex items-center gap-2">
+                            <div className="flex-1 text-sm">
+                              <div className="font-medium">{s.name}</div>
+                              <div className="text-xs text-slate-500">{Number(s.unit_price).toLocaleString("vi-VN")}đ {s.unit ? `/ ${s.unit}` : ''}</div>
+                              <div className={`text-xs mt-1 ${isExceeded ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
+                                Có sẵn: {s.quantity_available}
+                              </div>
+                            </div>
+                            <input
+                              type="number"
+                              min={0}
+                              max={s.quantity_available}
+                              value={s.quantity}
+                              onChange={(e) => {
+                                let q = Math.max(0, Number(e.target.value) || 0);
+                                if (q > s.quantity_available) {
+                                  toast.error(`${s.name} chỉ còn ${s.quantity_available} ${s.unit || 'cái'}. Vui lòng giảm số lượng.`);
+                                  q = s.quantity_available;
+                                }
+                                setSelectedServices(prev => prev.map((p,i) => i===idx ? {...p, quantity: q} : p));
+                              }}
+                              className={`w-20 px-2 py-1 border rounded-lg text-sm ${isExceeded ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

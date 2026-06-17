@@ -4,6 +4,7 @@ import { useUser } from "@clerk/clerk-react";
 import axios from "axios";
 import { MapPin, Clock, Star, ChevronLeft, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+import OwnerServices from "../../components/owners/OwnerServices";
 
 const API_BASE = "http://localhost:3000/api";
 
@@ -271,6 +272,11 @@ const OwnerFieldDetail = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Dịch vụ đi kèm */}
+          <div className="p-4 border-b border-slate-100">
+            <OwnerServices fieldId={id} />
           </div>
 
           {/* Feedback */}
