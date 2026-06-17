@@ -276,6 +276,19 @@ const CustomerBookings = () => {
 
                 {booking.note && <p className="mt-2 text-sm text-slate-500">Ghi chú: {booking.note}</p>}
 
+                {booking.services && booking.services.length > 0 && (
+                  <div className="mt-2 text-sm text-slate-600">
+                    <p className="font-medium">Dịch vụ đã đặt:</p>
+                    <ul className="mt-1 list-disc list-inside">
+                      {booking.services.map((s) => (
+                        <li key={s.id} className="mt-1">
+                          {s.name} x{s.quantity} — {Number(s.total_price || (s.unit_price * s.quantity) || 0).toLocaleString("vi-VN")}đ
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="mt-3 flex items-center justify-between gap-2 text-xs sm:text-sm text-slate-600">
                   <span>
                     Thanh toán:{" "}

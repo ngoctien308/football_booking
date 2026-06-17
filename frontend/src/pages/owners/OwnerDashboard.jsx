@@ -393,7 +393,19 @@ const OwnerDashboard = () => {
                 </div>
 
                 {booking.note && <p className="mt-2 text-sm text-slate-500">Ghi chú: {booking.note}</p>}
-                {booking.payment_status && <p className="mt-2 text-sm text-slate-600">Thanh toán: <span className="font-semibold">{booking.payment_status === "paid" ? "Đã thanh toán" : "Chưa thanh toán"}</span></p>}
+                                {booking.services && booking.services.length > 0 && (
+                                  <div className="mt-2 text-sm text-slate-600">
+                                    <p className="font-medium">Dịch vụ:</p>
+                                    <ul className="mt-1 list-disc list-inside">
+                                      {booking.services.map((s) => (
+                                        <li key={s.id} className="mt-1">
+                                          {s.name} x{s.quantity} — {Number(s.total_price || (s.unit_price * s.quantity) || 0).toLocaleString("vi-VN")}đ
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {booking.payment_status && <p className="mt-2 text-sm text-slate-600">Thanh toán: <span className="font-semibold">{booking.payment_status === "paid" ? "Đã thanh toán" : "Chưa thanh toán"}</span></p>}
 
                 {booking.status === "pending" && (
                   <div className="mt-3 flex gap-2 justify-end">
