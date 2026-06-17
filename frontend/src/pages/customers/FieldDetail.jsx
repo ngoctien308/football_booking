@@ -24,6 +24,14 @@ const FieldDetail = () => {
   const [contactPhone, setContactPhone] = useState("");
   const [bookingNote, setBookingNote] = useState("");
   const [creatingBooking, setCreatingBooking] = useState(false);
+  const availableServices = [
+    { key: "water", name: "Nước đóng chai", unit_price: 10000 },
+    { key: "jersey", name: "Áo pitch", unit_price: 50000 },
+    { key: "shoes", name: "Thuê giày", unit_price: 30000 },
+    { key: "ball", name: "Thuê bóng", unit_price: 20000 },
+  ];
+  const [selectedServices, setSelectedServices] = useState(() => availableServices.map(s => ({...s, quantity:0})));
+  const [applyExtrasToEachSlot, setApplyExtrasToEachSlot] = useState(true);
 
   // Chat UI
   const [showChat, setShowChat] = useState(false);
@@ -179,15 +187,24 @@ const FieldDetail = () => {
 
     try {
       setCreatingBooking(true);
+
+      const extras = selectedServices.filter(s => Number(s.quantity) > 0).map(s => ({ name: s.name, unit_price: s.unit_price, quantity: Number(s.quantity) }));
+
+      const slotsPayload = chosen.map((s, idx) => {
+        const services = applyExtrasToEachSlot ? extras : (idx === 0 ? extras : []);
+        return {
+          start_time: s.start_time,
+          end_time: s.end_time,
+          price: Number(s.price) || 0,
+          services,
+        };
+      });
+
       await axios.post(`${API_BASE}/bookings`, {
         clerk_user_id: user.id,
         field_id: Number(id),
         booking_date: bookingDate,
-        slots: chosen.map((s) => ({
-          start_time: s.start_time,
-          end_time: s.end_time,
-          price: Number(s.price) || 0,
-        })),
+        slots: slotsPayload,
         contact_phone: String(contactPhone).trim(),
         note: bookingNote || "",
       });
@@ -817,6 +834,36 @@ const FieldDetail = () => {
                   placeholder="VD: đội mình đến trễ 10 phút..."
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 text-sm font-medium mb-1">Dịch vụ kèm (tùy chọn)</label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" checked={applyExtrasToEachSlot} onChange={(e)=>setApplyExtrasToEachSlot(e.target.checked)} id="applyEach" />
+                    <label htmlFor="applyEach" className="text-sm text-slate-600">Áp dụng cho mỗi khung giờ đã chọn</label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedServices.map((s, idx) => (
+                      <div key={s.key} className="flex items-center gap-2">
+                        <div className="flex-1 text-sm">
+                          <div className="font-medium">{s.name}</div>
+                          <div className="text-xs text-slate-500">{Number(s.unit_price).toLocaleString("vi-VN")}đ / cái</div>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          value={s.quantity}
+                          onChange={(e) => {
+                            const q = Math.max(0, Number(e.target.value) || 0);
+                            setSelectedServices(prev => prev.map((p,i) => i===idx ? {...p, quantity: q} : p));
+                          }}
+                          className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-1">

@@ -178,6 +178,26 @@ CREATE TABLE messages (
 
 CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
 
+-- Migration: add booking_services table to store extra services attached to each booking
+
+CREATE TABLE IF NOT EXISTS booking_services (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    unit_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    total_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_booking_services_booking
+        FOREIGN KEY (booking_id)
+        REFERENCES bookings(id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_services_booking_id
+    ON booking_services (booking_id);
+
 -- Dữ liệu mẫu (Tùy chọn)
 -- No default admin user; only customer and owner roles are used
 

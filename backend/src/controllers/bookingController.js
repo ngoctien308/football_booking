@@ -219,26 +219,63 @@ export const createBooking = async (req, res) => {
                 ? `${cleanedContactName}${cleanedNote ? ` | ${cleanedNote}` : ""}`
                 : cleanedNote || null;
 
-        const bookingRows = selectedSlots.map((slot) => ({
-            customer_id: customer.id,
-            field_id: fieldId,
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-            booking_date: bookingDate,
-            contact_phone: String(contact_phone).trim(),
-            note: finalNote,
-            total_price: slot.price,
-            payment_status: "unpaid",
-            payment_method: null,
-            paid_at: null,
-            status: "pending",
-        }));
+        const bookingRows = selectedSlots.map((slot) => {
+            const slotServices = Array.isArray(slot.services) ? slot.services : [];
+            const servicesTotal = slotServices.reduce((acc, s) => {
+                const u = Number(s.unit_price || s.unitPrice || s.price || 0);
+                const q = Number(s.quantity || 0);
+                return acc + (Number.isFinite(u) ? u * (Number.isFinite(q) ? q : 0) : 0);
+            }, 0);
+            const totalPrice = Math.round((Number(slot.price || 0) + servicesTotal) * 100) / 100;
+            return {
+                customer_id: customer.id,
+                field_id: fieldId,
+                start_time: slot.start_time,
+                end_time: slot.end_time,
+                booking_date: bookingDate,
+                contact_phone: String(contact_phone).trim(),
+                note: finalNote,
+                total_price: totalPrice,
+                payment_status: "unpaid",
+                payment_method: null,
+                paid_at: null,
+                status: "pending",
+            };
+        });
 
         const { data: insertedRows, error: insertError } = await db
             .from("bookings")
             .insert(bookingRows)
             .select("id, field_id, start_time, end_time, booking_date, total_price, status, created_at");
         if (insertError) throw insertError;
+
+        // If any services were provided, insert into booking_services linked to created booking ids
+        try {
+            const bookingServicesInserts = [];
+            for (let i = 0; i < (insertedRows || []).length; i++) {
+                const created = insertedRows[i];
+                const origSlot = selectedSlots[i] || {};
+                const slotServices = Array.isArray(origSlot.services) ? origSlot.services : [];
+                for (const s of slotServices) {
+                    const unit = Number(s.unit_price ?? s.unitPrice ?? s.price ?? 0);
+                    const qty = Number(s.quantity ?? 0);
+                    if (!Number.isFinite(unit) || qty <= 0) continue;
+                    bookingServicesInserts.push({
+                        booking_id: created.id,
+                        name: s.name || s.key || "Service",
+                        unit_price: Math.round(unit * 100) / 100,
+                        quantity: qty,
+                        total_price: Math.round(unit * qty * 100) / 100,
+                    });
+                }
+            }
+            if (bookingServicesInserts.length > 0) {
+                const { error: bsError } = await db.from("booking_services").insert(bookingServicesInserts);
+                if (bsError) console.error("Failed to insert booking services", bsError);
+            }
+        } catch (err) {
+            console.error("Error inserting booking services", err);
+        }
 
         return res.status(201).json({
             message: "Booking created successfully and waiting for owner confirmation",
